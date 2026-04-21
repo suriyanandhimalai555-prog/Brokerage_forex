@@ -1,25 +1,24 @@
 import React, { useState } from "react";
+import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
-const DashboardLayout = ({ children }) => {
+const DashboardLayout = () => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar */}
       <Sidebar open={open} setOpen={setOpen} />
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col md:ml-64">
-
+      {/* Main Content */}
+      <div className="flex flex-col flex-1 overflow-hidden md:ml-64">
         <Navbar setOpen={setOpen} />
 
-        <div className="p-4 sm:p-6 lg:p-8">
-          {children}
-        </div>
-
+        {/* 🔥 IMPORTANT FIX */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8">
+          <Outlet />
+        </main>
       </div>
     </div>
   );
