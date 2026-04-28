@@ -325,103 +325,103 @@ const OrderReport = () => {
             </div>
 
 
-<div className="hidden lg:block rounded-xl border border-gray-200">
-  {/* ✅ SCROLL ONLY HERE */}
-  <div className="w-full overflow-x-auto">
-    <table className="min-w-[1400px] w-full text-[12px]">
-      <thead className="bg-[#353b8f] text-white">
-        <tr>
-          <th className="px-3 py-3 text-left whitespace-nowrap">S.No</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">UID</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Time</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Symbol</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Lot</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">BS</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">SL</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Target</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Status</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Avg</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Exit</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">PNL</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Sector</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Pair</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Type</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Trigger</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Margin</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Reason</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Phase</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Closing Time</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Swap</th>
-          <th className="px-3 py-3 text-left whitespace-nowrap">Spread Commn</th>
-        </tr>
-      </thead>
+            <div className="hidden lg:block rounded-xl border border-gray-200 overflow-hidden">
+              {/* ✅ SCROLL ONLY HERE */}
+              <div className="w-full overflow-x-auto">
+                <table className="min-w-[1400px] w-full text-[12px]">
+                  <thead className="bg-[#353b8f] text-white">
+                    <tr>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">S.No</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">UID</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Time</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Symbol</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Lot</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">BS</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">SL</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Target</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Status</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Avg</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Exit</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">PNL</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Sector</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Pair</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Type</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Trigger</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Margin</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Reason</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Phase</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Closing Time</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Swap</th>
+                      <th className="px-3 py-3 text-left whitespace-nowrap">Spread Commn</th>
+                    </tr>
+                  </thead>
 
-      <tbody>
-        {pagedOrders.length > 0 ? (
-          pagedOrders.map((row) => (
-            <tr key={row.sno} className="border-b hover:bg-gray-50">
-              <td className="px-3 py-2 whitespace-nowrap">{row.sno}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.uid}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.time}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.symbol}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.lot}</td>
+                  <tbody>
+                    {pagedOrders.length > 0 ? (
+                      pagedOrders.map((row) => (
+                        <tr key={row.sno} className="border-b hover:bg-gray-50">
+                          <td className="px-3 py-2 whitespace-nowrap">{row.sno}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.uid}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.time}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.symbol}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.lot}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap">
-                <span className={`px-2 py-1 rounded ${badgeClass(row.bs)}`}>
-                  {row.bs}
-                </span>
-              </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded ${badgeClass(row.bs)}`}>
+                              {row.bs}
+                            </span>
+                          </td>
 
-              <td className="px-3 py-2 whitespace-nowrap">{row.sl}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.target}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.sl}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.target}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap">
-                <span className={`px-2 py-1 rounded ${badgeClass(row.status)}`}>
-                  {row.status}
-                </span>
-              </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded ${badgeClass(row.status)}`}>
+                              {row.status}
+                            </span>
+                          </td>
 
-              <td className="px-3 py-2 whitespace-nowrap">
-                {formatAmount(row.avg)}
-              </td>
-              <td className="px-3 py-2 whitespace-nowrap">
-                {formatAmount(row.exit)}
-              </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {formatAmount(row.avg)}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {formatAmount(row.exit)}
+                          </td>
 
-              <td className="px-3 py-2 whitespace-nowrap text-blue-600 font-semibold">
-                {formatAmount(row.pnl)}
-              </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-blue-600 font-semibold">
+                            {formatAmount(row.pnl)}
+                          </td>
 
-              <td className="px-3 py-2 whitespace-nowrap">{row.sector}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.pair}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.type}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.trigger}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.sector}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.pair}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.type}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.trigger}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap">
-                {formatAmount(row.margin)}
-              </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {formatAmount(row.margin)}
+                          </td>
 
-              <td className="px-3 py-2 whitespace-nowrap">{row.reason}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.phase}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.closingTime}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.swap}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.reason}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.phase}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.closingTime}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.swap}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap">
-                {formatAmount(row.spreadCommn)}
-              </td>
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td colSpan={22} className="text-center py-10 text-gray-500">
-              No data available
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
-</div>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {formatAmount(row.spreadCommn)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={22} className="text-center py-10 text-gray-500">
+                          No data available
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
             <div className="2xl:hidden space-y-3">
               {pagedOrders.length > 0 ? (

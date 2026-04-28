@@ -14,6 +14,8 @@ import {
   File,
   LogOut,
 } from "lucide-react";
+import Logo from "../assets/logo.png";
+import { useAuth } from "../context/AuthContext";
 
 const menu = [
   {
@@ -75,6 +77,7 @@ const menu = [
 const Sidebar = ({ open, setOpen }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState({});
+  const { logout } = useAuth();
 
   // ✅ Only for opening menus (NOT styling)
   const hasActiveChild = (item) => {
@@ -108,9 +111,8 @@ const Sidebar = ({ open, setOpen }) => {
           <div key={key}>
             <button
               onClick={() => toggleMenu(key)}
-              className={`flex items-center justify-between w-full px-4 py-2 text-sm rounded-lg transition ${
-                level > 0 ? "ml-4" : ""
-              } text-gray-700 hover:bg-gray-100`}
+              className={`flex items-center justify-between w-full px-4 py-2 text-sm rounded-lg transition ${level > 0 ? "ml-4" : ""
+                } text-gray-700 hover:bg-gray-100`}
             >
               <div className="flex items-center gap-3">
                 <Icon size={16} className="text-gray-500" />
@@ -139,12 +141,10 @@ const Sidebar = ({ open, setOpen }) => {
           to={item.path}
           onClick={() => setOpen(false)}
           className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition ${
-              level > 0 ? "ml-6" : ""
-            } ${
-              isActive
-                ? "bg-blue-50 text-blue-600"
-                : "text-gray-600 hover:bg-gray-100"
+            `flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition ${level > 0 ? "ml-6" : ""
+            } ${isActive
+              ? "bg-blue-50 text-blue-600"
+              : "text-gray-600 hover:bg-gray-100"
             }`
           }
         >
@@ -170,8 +170,12 @@ const Sidebar = ({ open, setOpen }) => {
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b">
-            <span className="text-lg font-semibold">Forex Admin</span>
+          <div className="flex items-center justify-between px-6 py-5">
+
+            <div className="text-lg font-semibold flex items-center gap-2">
+              <img width={50} src={Logo} alt="" />
+              <span className="mt-2">AVG Forex</span>
+            </div>
 
             <button
               className="md:hidden"
@@ -187,8 +191,11 @@ const Sidebar = ({ open, setOpen }) => {
           </div>
 
           {/* Logout */}
-          <div className="p-3 border-t">
-            <button className="flex items-center gap-3 w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-xl">
+          <div className="p-3">
+            <button
+              onClick={logout}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-xl"
+            >
               <LogOut size={16} />
               Logout
             </button>

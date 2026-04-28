@@ -1,13 +1,15 @@
 // Navbar.jsx
 import React, { useState, useRef, useEffect } from "react";
-import { Menu, Bell, Search } from "lucide-react";
+import { Menu, Bell, Search, Network, Wallet } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const Navbar = ({ setOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(false);
   const dropdownRef = useRef(null);
   const { logout } = useAuth();
-
+  const navigate = useNavigate();
+  
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -34,14 +36,18 @@ const Navbar = ({ setOpen }) => {
       </div>
 
       <div className="flex items-center gap-4 sm:gap-6">
-        <div className="hidden md:flex items-center bg-gray-100 px-3 py-2 rounded-lg">
+        {/* <div className="hidden md:flex items-center bg-gray-100 px-3 py-2 rounded-lg">
           <Search size={16} className="mr-2 text-gray-500" />
           <input
             placeholder="Search..."
             className="bg-transparent outline-none text-sm"
           />
-        </div>
+        </div> */}
 
+        <div className="flex items-center gap-2">
+          <Wallet size={20} />
+          <span>26.55 USD</span>
+        </div>
         <div className="relative cursor-pointer">
           <Bell size={20} />
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
@@ -57,17 +63,19 @@ const Navbar = ({ setOpen }) => {
               alt="Admin"
               className="w-8 h-8 rounded-full"
             />
-            <span className="hidden sm:block text-sm font-medium">Admin</span>
+            <span className="hidden sm:block text-sm font-medium">User</span>
           </button>
 
           {openDropdown && (
             <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl p-2 z-[9999]">
               <div className="px-3 py-2 border-b">
-                <p className="text-sm font-medium text-gray-800">Admin</p>
-                <p className="text-xs text-gray-500">admin@email.com</p>
+                <p className="text-sm font-medium text-gray-800">USER</p>
+                <p className="text-xs text-gray-500">user@email.com</p>
               </div>
 
-              <button className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 mt-2">
+              <button className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 mt-2"
+                      onClick={() => navigate("/user/profile")}
+              >
                 Profile
               </button>
 
