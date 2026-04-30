@@ -51,9 +51,9 @@ const menu = [
                 path: "/user/order-history",
             },
             {
-                name: "Exness Terminal",
+                name: "AVG Terminal",
                 icon: Terminal,
-                path: "/user/exness-terminal",
+                path: "/user/avg-terminal",
             },
         ],
     },

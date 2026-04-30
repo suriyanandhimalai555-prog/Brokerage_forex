@@ -48,6 +48,8 @@ import Security from "./pages/Security";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 
+import TradingTerminal from "./pages/TradingTerminal";
+
 const App = () => {
   return (
     <Routes>
@@ -134,6 +136,8 @@ const App = () => {
         <Route path="support-hub" element={<SupportHub />} />
         <Route path="profile" element={<UserProfile />} />
         <Route path="security" element={<Security />} />
+
+        <Route path="avg-terminal" element={<TradingTerminal />} />
       </Route>
     </Routes>
   );

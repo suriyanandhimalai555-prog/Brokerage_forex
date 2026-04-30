@@ -9,15 +9,14 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-
   const navigate = useNavigate();
 
-  // 🔹 Load user on app start
   const loadUser = async () => {
     try {
       const res = await fetch(`${API_URL}/api/auth/me`, {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
       });
 
       const data = await res.json();
@@ -27,7 +26,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         setUser(null);
       }
-    } catch {
+    } catch (error) {
       setUser(null);
     } finally {
       setLoadingAuth(false);
@@ -38,7 +37,6 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
-  // 🔹 Logout (NO RELOAD)
   const logout = async () => {
     try {
       await fetch(`${API_URL}/api/auth/logout`, {
@@ -46,13 +44,10 @@ export const AuthProvider = ({ children }) => {
         credentials: "include",
       });
 
-      setUser(null); // ✅ clear user immediately
-
+      setUser(null);
       toast.success("Logged out successfully 👋");
-
-      navigate("/login", { replace: true }); // ✅ clean redirect
-
-    } catch {
+      navigate("/login", { replace: true });
+    } catch (error) {
       toast.error("Logout failed ❌");
     }
   };

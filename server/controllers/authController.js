@@ -10,10 +10,12 @@ const signToken = (user) => {
   );
 };
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const cookieOptions = {
   httpOnly: true,
-  secure: true,        // 🔥 ALWAYS true on Render (HTTPS)
-  sameSite: "none",    // 🔥 REQUIRED for cross-domain
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
@@ -37,9 +39,9 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO users (email, password, partner_code, role)
-       VALUES ($1, $2, $3, 'user')
-       RETURNING id, email, role`,
+      `INSERT INTO users (email, password, partner_code, role, balance)
+       VALUES ($1, $2, $3, 'user', 10000)
+       RETURNING id, email, role, balance`,
       [email, hashedPassword, partnerCode]
     );
 
@@ -51,6 +53,7 @@ export const registerUser = async (req, res) => {
     return res.status(201).json({
       message: "Registered successfully",
       user,
+      token,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -66,7 +69,7 @@ export const loginUser = async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT id, email, password, role FROM users WHERE email = $1",
+      "SELECT id, email, password, role, balance FROM users WHERE email = $1",
       [email]
     );
 
@@ -85,6 +88,7 @@ export const loginUser = async (req, res) => {
       id: userRow.id,
       email: userRow.email,
       role: userRow.role,
+      balance: userRow.balance,
     };
 
     const token = signToken(user);
@@ -94,6 +98,7 @@ export const loginUser = async (req, res) => {
     return res.json({
       message: "Login successful",
       user,
+      token,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -106,10 +111,10 @@ export const me = async (req, res) => {
 
 export const logoutUser = async (req, res) => {
   res.clearCookie("token", {
-  httpOnly: true,
-  sameSite: "none",
-  secure: true,
-});
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+  });
 
   return res.json({ message: "Logged out successfully" });
 };

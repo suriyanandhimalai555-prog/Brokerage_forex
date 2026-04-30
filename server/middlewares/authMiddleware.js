@@ -3,20 +3,26 @@ import { pool } from "../config/db.js";
 
 export const protect = async (req, res, next) => {
   try {
-    const token =
-      req.cookies?.token ||
-      (req.headers.authorization?.startsWith("Bearer ")
-        ? req.headers.authorization.split(" ")[1]
-        : null);
+    let token = null;
+
+    if (req.headers.authorization?.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    } else if (req.cookies?.token) {
+      token = req.cookies.token;
+    }
 
     if (!token) {
-      return res.status(401).json({ message: "Not authorized" });
+      return res.status(401).json({ message: "No token, not authorized" });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    if (!decoded?.id) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
     const result = await pool.query(
-      "SELECT id, email, role FROM users WHERE id = $1",
+      "SELECT id, email, role, balance FROM users WHERE id = $1",
       [decoded.id]
     );
 
@@ -25,8 +31,10 @@ export const protect = async (req, res, next) => {
     }
 
     req.user = result.rows[0];
+
     next();
   } catch (error) {
+    console.error("Auth error:", error.message);
     return res.status(401).json({ message: "Invalid token" });
   }
 };
