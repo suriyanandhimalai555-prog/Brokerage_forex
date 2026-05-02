@@ -2,31 +2,8 @@ import React, { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import Logo from "../assets/logo.png";
 import {
-    LayoutDashboard,
-    TrendingUp,
-    BarChart3,
-    History,
-    Terminal,
-    Wallet,
-    CreditCard,
-    ArrowDownCircle,
-    ArrowUpCircle,
-    Repeat,
-    Newspaper,
-    Calendar,
-    Gift,
-    Server,
-    Copy,
-    Headphones,
-    User,
-    Shield,
-    Settings,
-    Folder,
-    File,
-    Circle,
-    X,
-    ChevronDown,
-    LogOut,
+    TrendingUp, ExternalLink, BarChart3, History, Terminal, Wallet, ArrowDownCircle, ArrowUpCircle, Repeat, Newspaper, Calendar,
+    Gift, Server, Copy, Headphones, User, Shield, Settings, Folder, Circle, X, ChevronDown, LogOut,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -53,7 +30,8 @@ const menu = [
             {
                 name: "AVG Terminal",
                 icon: Terminal,
-                path: "/user/avg-terminal",
+                path: "/terminal",
+                external: true,
             },
         ],
     },
@@ -154,20 +132,15 @@ const menu = [
                 icon: Shield,
                 path: "/user/security",
             },
-            // {
-            //     name: "Trading Terminal",
-            //     icon: Terminal,
-            //     path: "/user/trading-terminal",
-            // },
         ],
     },
 ];
+
 const Sidebar = ({ open, setOpen }) => {
     const location = useLocation();
     const [openMenus, setOpenMenus] = useState({});
     const { logout } = useAuth();
 
-    // ✅ Only for opening menus (NOT styling)
     const hasActiveChild = (item) => {
         if (!item.children) return false;
 
@@ -190,10 +163,8 @@ const Sidebar = ({ open, setOpen }) => {
         return items.map((item, index) => {
             const key = `${parentKey}-${index}`;
             const Icon = item.icon || Circle;
-
             const isOpen = openMenus[key] || hasActiveChild(item);
 
-            // ✅ Parent menu (NO active color)
             if (item.children) {
                 return (
                     <div key={key}>
@@ -222,7 +193,26 @@ const Sidebar = ({ open, setOpen }) => {
                 );
             }
 
-            // ✅ Only this gets active
+            if (item.external) {
+                return (
+                    <a
+                        key={key}
+                        href={item.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between px-10.5 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-100"
+                    >
+                        <div className="flex items-center gap-3">
+                            <Icon size={14} />
+                            {item.name}
+                        </div>
+
+                        {/* 🔥 External Icon */}
+                        <ExternalLink size={14} className="opacity-60" />
+                    </a>
+                );
+            }
+
             return (
                 <NavLink
                     key={key}
@@ -257,28 +247,21 @@ const Sidebar = ({ open, setOpen }) => {
         ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
             >
                 <div className="flex flex-col h-full">
-                    {/* Header */}
                     <div className="flex items-center justify-between px-6 py-5">
-
                         <div className="text-lg font-semibold flex items-center gap-2">
                             <img width={50} src={Logo} alt="" />
                             <span className="mt-2">AVG Forex</span>
                         </div>
 
-                        <button
-                            className="md:hidden"
-                            onClick={() => setOpen(false)}
-                        >
+                        <button className="md:hidden" onClick={() => setOpen(false)}>
                             <X />
                         </button>
                     </div>
 
-                    {/* Menu */}
                     <div className="flex-1 p-3 space-y-2 overflow-y-auto overflow-x-hidden">
                         {renderMenu(menu)}
                     </div>
 
-                    {/* Logout */}
                     <div className="p-3">
                         <button
                             onClick={logout}

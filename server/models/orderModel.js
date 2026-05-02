@@ -5,19 +5,35 @@ export const createOrder = async (
     user_id,
     symbol,
     type,
+    side,
+    status,
     lot_size,
     units,
     leverage,
     margin,
-    open_price,
+    trigger_price = null,
+    open_price = null,
   },
   client = pool
 ) => {
   const query = `
     INSERT INTO orders
-      (user_id, symbol, type, lot_size, units, leverage, margin, open_price, status)
+      (
+        user_id,
+        symbol,
+        type,
+        side,
+        status,
+        lot_size,
+        units,
+        leverage,
+        margin,
+        trigger_price,
+        open_price,
+        created_at
+      )
     VALUES
-      ($1, $2, $3, $4, $5, $6, $7, $8, 'open')
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
     RETURNING *;
   `;
 
@@ -25,10 +41,13 @@ export const createOrder = async (
     user_id,
     symbol,
     type,
+    side,
+    status,
     lot_size,
     units,
     leverage,
     margin,
+    trigger_price,
     open_price,
   ];
 
@@ -67,13 +86,7 @@ export const getOpenOrderByIdAndUser = async (id, user_id, client = pool) => {
 };
 
 export const closeOrderByIdAndUser = async (
-  {
-    id,
-    user_id,
-    close_price,
-    close_time,
-    profit,
-  },
+  { id, user_id, close_price, close_time, profit },
   client = pool
 ) => {
   const { rows } = await client.query(

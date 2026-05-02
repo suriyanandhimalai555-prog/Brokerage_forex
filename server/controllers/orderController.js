@@ -9,7 +9,7 @@ import {
 const getContractSize = (symbol) => {
   const s = String(symbol || "").toUpperCase().replace(/\s+/g, "");
 
-  const cryptoPairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "BINANCE:"];
+  const cryptoPairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
   const forexPairs = [
     "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
     "EURGBP", "EURAUD", "EURJPY", "EURCHF", "EURCAD", "EURNZD",
@@ -32,6 +32,45 @@ const getContractSize = (symbol) => {
   return 100000;
 };
 
+const cleanSymbol = (symbol) => {
+  const raw = String(symbol || "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/^OANDA:/, "")
+    .replace(/^TVC:/, "")
+    .replace(/^BINANCE:/, "");
+
+  if (raw.includes("/")) return raw;
+  if (/^[A-Z]{6}$/.test(raw)) return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  if (/^[A-Z0-9]+USDT$/.test(raw)) return `${raw.slice(0, -4)}/USDT`;
+  if (/^[A-Z0-9]+USD$/.test(raw) && raw.length > 3) return `${raw.slice(0, -3)}/USD`;
+  return raw;
+};
+
+const normalizeOrderType = (type) => {
+  const t = String(type || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+
+  const allowed = new Set([
+    "buy",
+    "sell",
+    "buy_limit",
+    "sell_limit",
+    "buy_stop",
+    "sell_stop",
+  ]);
+
+  return allowed.has(t) ? t : null;
+};
+
+const isPendingType = (type) =>
+  ["buy_limit", "sell_limit", "buy_stop", "sell_stop"].includes(String(type || "").toLowerCase());
+
+const getSideFromType = (type) =>
+  String(type || "").toLowerCase().startsWith("buy") ? "buy" : "sell";
+
 const calculatePnL = ({ type, openPrice, closePrice, units }) => {
   const entry = Number(openPrice);
   const exit = Number(closePrice);
@@ -39,11 +78,103 @@ const calculatePnL = ({ type, openPrice, closePrice, units }) => {
 
   if ([entry, exit, qty].some((v) => Number.isNaN(v))) return 0;
 
-  if (String(type).toLowerCase() === "buy") {
-    return (exit - entry) * qty;
-  }
-
+  if (getSideFromType(type) === "buy") return (exit - entry) * qty;
   return (entry - exit) * qty;
+};
+
+const shouldTriggerPendingOrder = (orderType, triggerPrice, marketPrice) => {
+  const trigger = Number(triggerPrice);
+  const price = Number(marketPrice);
+
+  if (Number.isNaN(trigger) || Number.isNaN(price)) return false;
+
+  switch (String(orderType).toLowerCase()) {
+    case "buy_limit":
+      return price <= trigger;
+    case "sell_limit":
+      return price >= trigger;
+    case "buy_stop":
+      return price >= trigger;
+    case "sell_stop":
+      return price <= trigger;
+    default:
+      return false;
+  }
+};
+
+const mapOrderForResponse = (order) => {
+  const isPending = String(order.status || "").toLowerCase() === "pending";
+
+  return {
+    ...order,
+    symbol: cleanSymbol(order.symbol),
+    display_symbol: cleanSymbol(order.symbol),
+    side: getSideFromType(order.type),
+    open_price:
+      isPending || order.open_price === null || Number(order.open_price) === 0
+        ? null
+        : Number(order.open_price),
+    trigger_price:
+      order.trigger_price === null || order.trigger_price === undefined
+        ? null
+        : Number(order.trigger_price),
+  };
+};
+
+export const processPendingOrdersBySymbol = async (symbol, marketPrice) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `
+      SELECT *
+      FROM orders
+      WHERE UPPER(symbol) = UPPER($1)
+        AND status = 'pending'
+      ORDER BY id ASC
+      FOR UPDATE
+      `,
+      [symbol]
+    );
+
+    const executed = [];
+
+    for (const order of result.rows) {
+      const triggerOk = shouldTriggerPendingOrder(
+        order.type,
+        order.trigger_price,
+        marketPrice
+      );
+
+      if (!triggerOk) continue;
+
+      const updated = await client.query(
+        `
+        UPDATE orders
+        SET status = 'open',
+            open_price = $1
+        WHERE id = $2
+        RETURNING *
+        `,
+        [Number(marketPrice), order.id]
+      );
+
+      if (updated.rowCount > 0) {
+        executed.push(mapOrderForResponse(updated.rows[0]));
+      }
+    }
+
+    await client.query("COMMIT");
+    return executed;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Pending order execution error:", err);
+    return [];
+  } finally {
+    client.release();
+  }
 };
 
 export const placeOrder = async (req, res) => {
@@ -56,26 +187,42 @@ export const placeOrder = async (req, res) => {
       return res.status(401).json({ message: "Invalid token" });
     }
 
-    const { symbol, type, lot_size, price, leverage = 100 } = req.body;
+    const {
+      symbol,
+      type,
+      lot_size,
+      price,
+      trigger_price,
+      leverage = 100,
+    } = req.body;
 
-    if (!symbol || !type || lot_size === undefined || lot_size === null || !price) {
+    if (!symbol || !type || lot_size === undefined || lot_size === null) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
+    const normalizedType = normalizeOrderType(type);
+
+    if (!normalizedType) {
+      return res.status(400).json({ message: "Invalid order type" });
+    }
+
     const lot = Number(lot_size);
-    const open_price = Number(price);
     const lev = Number(leverage);
+    const pending = isPendingType(normalizedType);
+    const entryPrice = pending ? Number(trigger_price) : Number(price);
 
     if (Number.isNaN(lot) || lot <= 0) {
       return res.status(400).json({ message: "Invalid lot size" });
     }
 
-    if (Number.isNaN(open_price) || open_price <= 0) {
-      return res.status(400).json({ message: "Invalid price" });
-    }
-
     if (Number.isNaN(lev) || lev <= 0) {
       return res.status(400).json({ message: "Invalid leverage" });
+    }
+
+    if (Number.isNaN(entryPrice) || entryPrice <= 0) {
+      return res.status(400).json({
+        message: pending ? "Invalid trigger price" : "Invalid price",
+      });
     }
 
     const contractSize = getContractSize(symbol);
@@ -110,24 +257,25 @@ export const placeOrder = async (req, res) => {
       {
         user_id,
         symbol,
-        type: String(type).toLowerCase(),
+        type: normalizedType,
+        side: getSideFromType(normalizedType),
+        status: pending ? "pending" : "open",
         lot_size: lot,
         units,
         leverage: lev,
         margin,
-        open_price,
+        trigger_price: pending ? entryPrice : null,
+        open_price: pending ? null : entryPrice,
       },
       client
     );
-
-    const updatedBalance = currentBalance - margin;
 
     await client.query("COMMIT");
 
     return res.json({
       success: true,
-      order,
-      balance: updatedBalance,
+      order: mapOrderForResponse(order),
+      balance: currentBalance - margin,
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -148,7 +296,9 @@ export const getOrders = async (req, res) => {
 
     const orders = await getOrdersByUser(user_id);
 
-    return res.json({ orders });
+    return res.json({
+      orders: Array.isArray(orders) ? orders.map(mapOrderForResponse) : [],
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Error fetching orders" });
@@ -220,7 +370,7 @@ export const closeOrder = async (req, res) => {
 
     return res.json({
       success: true,
-      order: closedOrder,
+      order: mapOrderForResponse(closedOrder),
       balance: Number(balanceResult.rows[0].balance || 0),
     });
   } catch (err) {

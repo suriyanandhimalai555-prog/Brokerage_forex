@@ -1,10 +1,11 @@
 import axios from "axios";
+import { processPendingOrdersBySymbol } from "./orderController.js";
 
 const priceCache = new Map();
 
 const CACHE_TTL = {
-  crypto: 1000,   // 1 second
-  other: 15000,   // 15 seconds
+  crypto: 1000,
+  other: 1000,
 };
 
 const normalizeSymbol = (symbol) => {
@@ -36,6 +37,21 @@ const normalizeSymbol = (symbol) => {
   return null;
 };
 
+const cleanDisplaySymbol = (symbol) => {
+  const raw = String(symbol || "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/^OANDA:/, "")
+    .replace(/^TVC:/, "")
+    .replace(/^BINANCE:/, "");
+
+  if (raw.includes("/")) return raw;
+  if (/^[A-Z]{6}$/.test(raw)) return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  if (/^[A-Z0-9]+USDT$/.test(raw)) return `${raw.slice(0, -4)}/USDT`;
+  if (/^[A-Z0-9]+USD$/.test(raw) && raw.length > 3) return `${raw.slice(0, -3)}/USD`;
+  return raw;
+};
+
 const fetchRemotePrice = async (meta) => {
   if (meta.provider === "binance") {
     const response = await axios.get(
@@ -44,7 +60,6 @@ const fetchRemotePrice = async (meta) => {
 
     const price = Number(response.data.price);
     if (!price) throw new Error("Invalid Binance price");
-
     return price;
   }
 
@@ -82,32 +97,29 @@ export const getLivePrice = async (req, res) => {
     const now = Date.now();
     const cached = priceCache.get(meta.cacheKey);
 
+    let price;
+
     if (cached && now - cached.updatedAt < meta.ttl) {
-      return res.json({
-        symbol: meta.providerSymbol,
-        price: cached.price,
-        updatedAt: cached.updatedAt,
-        source: cached.source,
+      price = cached.price;
+    } else {
+      price = await fetchRemotePrice(meta);
+      priceCache.set(meta.cacheKey, {
+        price,
+        updatedAt: now,
+        source: meta.provider,
       });
     }
 
-    const price = await fetchRemotePrice(meta);
+    await processPendingOrdersBySymbol(symbol, price);
 
-    const payload = {
+    return res.json({
+      symbol: cleanDisplaySymbol(meta.providerSymbol),
       price,
       updatedAt: now,
       source: meta.provider,
-    };
-
-    priceCache.set(meta.cacheKey, payload);
-
-    return res.json({
-      symbol: meta.providerSymbol,
-      ...payload,
     });
   } catch (err) {
     console.error(err.response?.data || err.message);
-
     return res.status(500).json({
       message: "Live price error",
     });

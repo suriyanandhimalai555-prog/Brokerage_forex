@@ -8,8 +8,15 @@ import {
   Wallet,
   Activity,
   ChevronRight,
+  Moon,
+  Sun,
+  ArrowUpRight,
+  ArrowDownRight,
+  Clock3,
+  XCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import Logo from "../assets/logo.png";
 
 const SCRIPT_ID = "tradingview-script";
 const CONTAINER_ID = "tradingview_chart";
@@ -113,6 +120,41 @@ const MARKET_SECTIONS = [
 
 const DEFAULT_ITEM = MARKET_SECTIONS[5].items[0];
 
+const getInitialTheme = () => {
+  if (typeof window === "undefined") return "dark";
+  const saved = localStorage.getItem("avg_terminal_theme");
+  if (saved === "dark" || saved === "light") return saved;
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  return prefersDark ? "dark" : "light";
+};
+
+const cleanSymbol = (symbol) => {
+  const raw = String(symbol || "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/^OANDA:/, "")
+    .replace(/^TVC:/, "")
+    .replace(/^BINANCE:/, "");
+
+  if (raw.includes("/")) return raw;
+  if (/^[A-Z]{6}$/.test(raw)) return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  if (/^[A-Z0-9]+USDT$/.test(raw)) return `${raw.slice(0, -4)}/USDT`;
+  if (/^[A-Z0-9]+USD$/.test(raw) && raw.length > 3) return `${raw.slice(0, -3)}/USD`;
+  return raw;
+};
+
+const orderTypeLabel = (type) => String(type || "").replace(/_/g, " ").toUpperCase();
+
+const formatPrice = (value) => {
+  if (value === null || value === undefined || Number(value) === 0) return "-";
+  return Number(value).toFixed(4);
+};
+
+const formatPnL = (value) => {
+  const n = Number(value || 0);
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+};
+
 const TradingTerminal = () => {
   const widgetRef = useRef(null);
   const chartWrapperRef = useRef(null);
@@ -122,13 +164,26 @@ const TradingTerminal = () => {
   const [loading, setLoading] = useState(true);
   const [orderLoading, setOrderLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme);
 
   const [livePrice, setLivePrice] = useState(0);
   const [balance, setBalance] = useState(0);
   const [orders, setOrders] = useState([]);
   const [refreshingOrders, setRefreshingOrders] = useState(false);
+  const [triggerPrice, setTriggerPrice] = useState("");
 
   const currentSymbol = selectedMarket.tvSymbol;
+  const isDark = theme === "dark";
+
+  useEffect(() => {
+    localStorage.setItem("avg_terminal_theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (livePrice > 0) {
+      setTriggerPrice(String(livePrice));
+    }
+  }, [currentSymbol]);
 
   const destroyWidget = () => {
     try {
@@ -157,7 +212,7 @@ const TradingTerminal = () => {
       interval: "15",
       container_id: CONTAINER_ID,
       timezone: "Asia/Kolkata",
-      theme: "dark",
+      theme: theme,
       style: "1",
       autosize: true,
       hide_side_toolbar: false,
@@ -190,20 +245,19 @@ const TradingTerminal = () => {
   };
 
   const fetchLivePrice = async () => {
-  try {
-    const res = await fetch(
-      `http://localhost:5000/api/market/price/${encodeURIComponent(currentSymbol)}`
-    );
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/market/price/${encodeURIComponent(currentSymbol)}`
+      );
+      const data = await res.json();
 
-    const data = await res.json();
-
-    if (res.ok && data?.price !== undefined && data?.price !== null) {
-      setLivePrice(Number(data.price));
+      if (res.ok && data?.price !== undefined && data?.price !== null) {
+        setLivePrice(Number(data.price));
+      }
+    } catch (err) {
+      console.error(err);
     }
-  } catch (err) {
-    console.error(err);
-  }
-};
+  };
 
   const fetchOrders = async () => {
     try {
@@ -269,7 +323,7 @@ const TradingTerminal = () => {
       cancelled = true;
       destroyWidget();
     };
-  }, [currentSymbol]);
+  }, [currentSymbol, theme]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -312,13 +366,18 @@ const TradingTerminal = () => {
     }
   };
 
-  const visibleOrders = useMemo(
-    () => orders.filter((o) => o.symbol === currentSymbol),
-    [orders, currentSymbol]
-  );
+  const visibleOrders = useMemo(() => {
+    const activeKey = cleanSymbol(currentSymbol);
+    return orders.filter((o) => cleanSymbol(o.symbol) === activeKey);
+  }, [orders, currentSymbol]);
 
   const openOrders = useMemo(
     () => visibleOrders.filter((o) => (o.status || "open").toLowerCase() === "open"),
+    [visibleOrders]
+  );
+
+  const pendingOrders = useMemo(
+    () => visibleOrders.filter((o) => (o.status || "").toLowerCase() === "pending"),
     [visibleOrders]
   );
 
@@ -328,20 +387,20 @@ const TradingTerminal = () => {
   );
 
   const floatingPnL = useMemo(() => {
-    if (!livePrice || selectedMarket.marketType !== "crypto") return 0;
+    if (!livePrice) return 0;
 
     return openOrders.reduce((sum, order) => {
       const entry = Number(order.open_price || 0);
       const units = Number(order.units || 0);
       const side = String(order.type || "").toLowerCase();
 
-      if (side === "buy") {
+      if (side.startsWith("buy")) {
         return sum + (livePrice - entry) * units;
       }
 
       return sum + (entry - livePrice) * units;
     }, 0);
-  }, [openOrders, livePrice, selectedMarket.marketType]);
+  }, [openOrders, livePrice]);
 
   const marginUsed = useMemo(
     () => openOrders.reduce((sum, order) => sum + Number(order.margin || 0), 0),
@@ -377,12 +436,25 @@ const TradingTerminal = () => {
       }
 
       if (!canTrade) {
-        toast.error("Trading is enabled only for live markets.");
+        toast.error("Trading is enabled only when live price is available.");
         return;
       }
 
+      const normalizedType = String(type || "").toLowerCase();
+      const isPending = ["buy_limit", "sell_limit", "buy_stop", "sell_stop"].includes(
+        normalizedType
+      );
+
+      if (isPending) {
+        const tp = Number(triggerPrice);
+        if (Number.isNaN(tp) || tp <= 0) {
+          toast.error("Enter a valid trigger price");
+          return;
+        }
+      }
+
       setOrderLoading(true);
-      const loadingToast = toast.loading(`${type.toUpperCase()} order placing...`);
+      const loadingToast = toast.loading(`${orderTypeLabel(normalizedType)} placing...`);
 
       const res = await fetch("http://localhost:5000/api/orders", {
         method: "POST",
@@ -392,9 +464,10 @@ const TradingTerminal = () => {
         },
         body: JSON.stringify({
           symbol: currentSymbol,
-          type,
+          type: normalizedType,
           lot_size: 0.01,
           price: livePrice,
+          trigger_price: isPending ? Number(triggerPrice) : null,
           leverage: 100,
         }),
       });
@@ -414,7 +487,7 @@ const TradingTerminal = () => {
       }
 
       toast.dismiss(loadingToast);
-      toast.success(`${type.toUpperCase()} order placed ✅`);
+      toast.success(`${orderTypeLabel(normalizedType)} placed ✅`);
 
       if (data?.balance !== undefined) {
         setBalance(Number(data.balance || 0));
@@ -441,7 +514,7 @@ const TradingTerminal = () => {
       }
 
       if (!canTrade) {
-        toast.error("Trading is enabled only for live markets.");
+        toast.error("Trading is enabled only when live price is available.");
         return;
       }
 
@@ -488,305 +561,610 @@ const TradingTerminal = () => {
     }
   };
 
-  return (
-    <div className="p-4 space-y-4 bg-white rounded-2xl shadow-sm">
-      <div className="flex flex-col lg:grid lg:grid-cols-[340px_1fr] gap-4">
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <h2 className="text-xl font-semibold">Trading Terminal</h2>
-            <p className="text-sm text-gray-500">
-              {/* // {selectedMarket.marketType === "crypto" */}
-              {/* // ? "Live execution enabled" */}
-              {/* // : "View mode only for this market until a live price feed is added."} */}
-            </p>
-          </div>
+  const rootClass = isDark
+    ? "min-h-screen bg-slate-950 text-slate-100"
+    : "min-h-screen bg-slate-50 text-slate-900";
 
-          <div className="rounded-2xl border p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Search size={16} className="text-gray-500" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search pair, index, metal..."
-                className="w-full outline-none text-sm"
-              />
+  const panelClass = isDark
+    ? "bg-slate-900 border-slate-700"
+    : "bg-white border-slate-200";
+
+  const mutedText = isDark ? "text-slate-400" : "text-slate-500";
+  const softInput = isDark
+    ? "bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
+    : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400";
+
+  const sectionButtonActive = isDark
+    ? "border-slate-200 bg-slate-200 text-slate-900"
+    : "border-slate-900 bg-slate-900 text-white";
+
+  const sectionButtonInactive = isDark
+    ? "border-slate-700 hover:bg-slate-800 text-slate-100"
+    : "border-slate-200 hover:bg-slate-50 text-slate-900";
+
+  const actionButtonBase =
+    "rounded-xl py-3 font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed";
+
+  const OrdersMobileCard = ({ order, type }) => {
+    const isOpen = type === "open";
+    const isPending = type === "pending";
+    const isClosed = type === "closed";
+
+    const entry = Number(order.open_price || 0);
+    const units = Number(order.units || 0);
+    const side = String(order.type || "").toLowerCase();
+    const pnl =
+      isOpen && livePrice
+        ? side.startsWith("buy")
+          ? (livePrice - entry) * units
+          : (entry - livePrice) * units
+        : Number(order.profit || 0);
+
+    return (
+      <div
+        className={`rounded-2xl border p-4 ${
+          isDark ? "border-slate-700 bg-slate-950/40" : "border-slate-200 bg-white"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-lg font-semibold">
+              {order.display_symbol || cleanSymbol(order.symbol)}
+            </div>
+            <div className={`mt-1 text-sm ${mutedText}`}>
+              {orderTypeLabel(order.type)}
             </div>
           </div>
 
-          <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
-            {filteredSections.map((section) => (
-              <div key={section.title} className="rounded-2xl border p-3">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div>
-                    <h3 className="font-semibold">{section.title}</h3>
-                    <p className="text-xs text-gray-500">
-                      {section.marketType.toUpperCase()} • Spread {section.spread}
-                    </p>
-                  </div>
-                  <span className="text-xs text-gray-500">{section.items.length}</span>
-                </div>
+          {isOpen && (
+            <div
+              className={`text-sm font-semibold ${
+                pnl >= 0 ? "text-green-600" : "text-red-500"
+              }`}
+            >
+              PnL: {formatPnL(pnl)}
+            </div>
+          )}
 
-                <div className="space-y-2">
-                  {section.items.map((item) => {
-                    const active = item.tvSymbol === currentSymbol;
+          {isPending && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
+              <Clock3 size={13} />
+              Pending
+            </div>
+          )}
 
-                    return (
-                      <button
-                        key={item.tvSymbol}
-                        onClick={() => setSelectedMarket(item)}
-                        className={`w-full flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ${active
-                            ? "border-gray-900 bg-gray-900 text-white"
-                            : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                      >
-                        <div>
-                          <div className="font-medium">{item.label}</div>
-                          <div
-                            className={`text-xs ${active ? "text-gray-200" : "text-gray-500"}`}
-                          >
-                            {item.tvSymbol}
-                          </div>
-                        </div>
-                        <ChevronRight size={16} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+          {isClosed && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-3 py-1 text-xs font-semibold text-slate-500">
+              <XCircle size={13} />
+              Closed
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <div className={mutedText}>Lots</div>
+            <div className="font-medium">{Number(order.lot_size || 0).toFixed(2)}</div>
+          </div>
+          <div>
+            <div className={mutedText}>Units</div>
+            <div className="font-medium">{Number(order.units || 0).toFixed(2)}</div>
+          </div>
+
+          <div>
+            <div className={mutedText}>{isPending ? "Trigger" : "Open"}</div>
+            <div className="font-medium">
+              {isPending
+                ? formatPrice(order.trigger_price)
+                : formatPrice(order.open_price)}
+            </div>
+          </div>
+
+          <div>
+            <div className={mutedText}>{isClosed ? "Close" : "Live"}</div>
+            <div className="font-medium">
+              {isClosed
+                ? formatPrice(order.close_price)
+                : livePrice
+                  ? livePrice.toFixed(4)
+                  : "-"}
+            </div>
+          </div>
+
+          <div>
+            <div className={mutedText}>Margin</div>
+            <div className="font-medium">{Number(order.margin || 0).toFixed(2)}</div>
+          </div>
+
+          <div>
+            <div className={mutedText}>Leverage</div>
+            <div className="font-medium">1:{Number(order.leverage || 100)}</div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <Wallet size={16} />
-                Balance
-              </div>
-              <div className="mt-2 text-2xl font-semibold">{availableBalance.toFixed(2)}</div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <TrendingUp size={16} />
-                Equity
-              </div>
-              <div className="mt-2 text-2xl font-semibold">{equity.toFixed(2)}</div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <Activity size={16} />
-                Floating PnL
-              </div>
-              <div
-                className={`mt-2 text-2xl font-semibold ${floatingPnL >= 0 ? "text-green-600" : "text-red-500"
-                  }`}
-              >
-                {floatingPnL >= 0 ? "+" : ""}
-                {floatingPnL.toFixed(2)}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <Wallet size={16} />
-                Margin Used
-              </div>
-              <div className="mt-2 text-2xl font-semibold">{marginUsed.toFixed(2)}</div>
-            </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="text-xs text-slate-400">
+            {isPending ? "Waiting for trigger" : isClosed ? "Trade completed" : "Live trade"}
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold">{selectedMarket.label}</h3>
-              <p className="text-sm text-gray-500">
-                Live price:{" "}
-                <span className="font-semibold text-gray-800">
-                  {livePrice ? livePrice.toFixed(4) : "-"}
-                </span>
-                {" • "}Contract size: {selectedMarket.contractSize || 100000}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-              <button
-                type="button"
-                onClick={() => {
-                  fetchProfile();
-                  fetchLivePrice();
-                  fetchOrders();
-                  toast.success("Refreshed");
-                }}
-                className="inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg"
-              >
-                <RefreshCw size={16} />
-                Refresh
-              </button>
-
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg"
-              >
-                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              </button>
-            </div>
-          </div>
-
-          <div
-            ref={chartWrapperRef}
-            className={`w-full relative bg-black rounded-xl overflow-hidden ${isFullscreen ? "h-[100vh]" : "h-[500px]"
-              }`}
-          >
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center text-white z-10">
-                Loading Chart...
-              </div>
-            )}
-            <div id={CONTAINER_ID} className="w-full h-full" />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-500">Lot Size</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={0.01}
-                readOnly
-                className="border px-3 py-2 rounded-lg w-28 bg-gray-50"
-              />
-            </div>
-
-            <div className="text-sm text-gray-500">
-              Buy/Sell is enabled only when live price is available for this market.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          {isOpen && (
             <button
-              onClick={() => placeOrder("buy")}
-              disabled={orderLoading || !canTrade}
-              className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white py-3 rounded-xl font-semibold"
+              onClick={() => closeOrder(order.id)}
+              disabled={!canTrade}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              {orderLoading ? "Loading..." : "BUY"}
+              Close
             </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
-            <button
-              onClick={() => placeOrder("sell")}
-              disabled={orderLoading || !canTrade}
-              className="bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white py-3 rounded-xl font-semibold"
-            >
-              {orderLoading ? "Loading..." : "SELL"}
-            </button>
-          </div>
+  const OrdersDesktopTable = ({ title, items, type }) => {
+    const isOpen = type === "open";
+    const isPending = type === "pending";
+    const isClosed = type === "closed";
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Open Orders</h3>
-                <span className="text-sm text-gray-500">
-                  {refreshingOrders ? "Refreshing..." : openOrders.length}
-                </span>
-              </div>
+    return (
+      <div className={`rounded-2xl border ${panelClass} overflow-hidden`}>
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h3 className="font-semibold">{title}</h3>
+          <span className={`text-sm ${mutedText}`}>{items.length}</span>
+        </div>
 
-              <div className="space-y-3 max-h-[340px] overflow-y-auto">
-                {openOrders.length === 0 ? (
-                  <p className="text-sm text-gray-500">No open orders.</p>
-                ) : (
-                  openOrders.map((o) => {
-                    const entry = Number(o.open_price || 0);
-                    const units = Number(o.units || 0);
-                    const side = String(o.type || "").toLowerCase();
-                    const pnl = livePrice
-                      ? side === "buy"
+        <div className="overflow-x-auto">
+          <table className="min-w-[980px] w-full text-sm">
+            <thead className={isDark ? "bg-slate-950 text-slate-300" : "bg-slate-50 text-slate-600"}>
+              <tr className="text-left">
+                <th className="px-4 py-3 font-semibold">Symbol</th>
+                <th className="px-4 py-3 font-semibold">Type</th>
+                <th className="px-4 py-3 font-semibold">Lots</th>
+                <th className="px-4 py-3 font-semibold">Units</th>
+                <th className="px-4 py-3 font-semibold">{isPending ? "Trigger" : "Open"}</th>
+                <th className="px-4 py-3 font-semibold">{isClosed ? "Close" : "Live"}</th>
+                <th className="px-4 py-3 font-semibold">Margin</th>
+                <th className="px-4 py-3 font-semibold">Leverage</th>
+                <th className="px-4 py-3 font-semibold">PnL</th>
+                <th className="px-4 py-3 font-semibold text-center">
+                  {isOpen ? "Action" : isPending ? "Status" : "Result"}
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan="10" className="px-4 py-8 text-center text-slate-500">
+                    No {title.toLowerCase()}.
+                  </td>
+                </tr>
+              ) : (
+                items.map((order) => {
+                  const entry = Number(order.open_price || 0);
+                  const units = Number(order.units || 0);
+                  const side = String(order.type || "").toLowerCase();
+
+                  const pnl = isOpen
+                    ? livePrice
+                      ? side.startsWith("buy")
                         ? (livePrice - entry) * units
                         : (entry - livePrice) * units
-                      : 0;
+                      : 0
+                    : Number(order.profit || 0);
 
-                    return (
-                      <div
-                        key={o.id}
-                        className="border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                  return (
+                    <tr
+                      key={order.id}
+                      className={`border-t ${
+                        isDark ? "border-slate-800 hover:bg-slate-950/50" : "border-slate-100 hover:bg-slate-50"
+                      } transition`}
+                    >
+                      <td className="px-4 py-4 font-semibold">
+                        {order.display_symbol || cleanSymbol(order.symbol)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                            isOpen
+                              ? "bg-emerald-500/10 text-emerald-600"
+                              : isPending
+                                ? "bg-amber-500/10 text-amber-600"
+                                : "bg-slate-500/10 text-slate-500"
+                          }`}
+                        >
+                          {orderTypeLabel(order.type)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">{Number(order.lot_size || 0).toFixed(2)}</td>
+                      <td className="px-4 py-4">{Number(order.units || 0).toFixed(2)}</td>
+                      <td className="px-4 py-4">
+                        {isPending
+                          ? formatPrice(order.trigger_price)
+                          : formatPrice(order.open_price)}
+                      </td>
+                      <td className="px-4 py-4">
+                        {isClosed
+                          ? formatPrice(order.close_price)
+                          : livePrice
+                            ? livePrice.toFixed(4)
+                            : "-"}
+                      </td>
+                      <td className="px-4 py-4">{Number(order.margin || 0).toFixed(2)}</td>
+                      <td className="px-4 py-4">1:{Number(order.leverage || 100)}</td>
+                      <td
+                        className={`px-4 py-4 font-semibold ${
+                          pnl >= 0 ? "text-green-600" : "text-red-500"
+                        }`}
                       >
-                        <div className="space-y-1">
-                          <p className="font-medium">{o.symbol}</p>
-                          <p className="text-sm text-gray-500">
-                            {String(o.type || "").toUpperCase()} • Lot{" "}
-                            {Number(o.lot_size || 0).toFixed(2)} • Units{" "}
-                            {Number(o.units || 0).toFixed(2)}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            Open: {entry.toFixed(4)} • Live:{" "}
-                            {livePrice ? livePrice.toFixed(4) : "-"}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            Margin: {Number(o.margin || 0).toFixed(2)} • Leverage{" "}
-                            1:{Number(o.leverage || 100)}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col sm:items-end gap-2">
-                          <div
-                            className={`text-sm font-semibold ${pnl >= 0 ? "text-green-600" : "text-red-500"
-                              }`}
-                          >
-                            PnL: {pnl >= 0 ? "+" : ""}
-                            {pnl.toFixed(2)}
-                          </div>
-
+                        {formatPnL(pnl)}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {isOpen ? (
                           <button
-                            onClick={() => closeOrder(o.id)}
+                            onClick={() => closeOrder(order.id)}
                             disabled={!canTrade}
-                            className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                            className="rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                           >
                             Close
                           </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                        ) : isPending ? (
+                          <span className="text-xs font-semibold text-amber-600">Waiting</span>
+                        ) : (
+                          <span className={pnl >= 0 ? "text-green-600" : "text-red-500"}>
+                            {pnl >= 0 ? "Profit" : "Loss"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`${rootClass} p-4`}>
+      <div className={`space-y-4 rounded-2xl shadow-sm border ${panelClass} p-4`}>
+        <div className="flex flex-col lg:grid lg:grid-cols-[340px_1fr] gap-4">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <img width={40} src={Logo} alt="AVG Forex Logo" />
+                  <h2 className="text-xl font-semibold">AVG Trading Terminal</h2>
+                </div>
+                <p className={`text-sm ${mutedText}`}>Live execution panel</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+                  isDark
+                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                    : "border-slate-300 bg-white hover:bg-slate-100"
+                }`}
+              >
+                {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                {/* {isDark ? "Light Mode" : "Dark Mode"} */}
+              </button>
+            </div>
+
+            <div className={`rounded-2xl border p-4 space-y-3 ${panelClass}`}>
+              <div className="flex items-center gap-2">
+                <Search size={16} className="text-gray-500" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search pair, index, metal..."
+                  className={`w-full outline-none text-sm border rounded-xl px-3 py-2 ${softInput}`}
+                />
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Closed Orders</h3>
-                <span className="text-sm text-gray-500">{closedOrders.length}</span>
-              </div>
-
-              <div className="space-y-3 max-h-[340px] overflow-y-auto">
-                {closedOrders.length === 0 ? (
-                  <p className="text-sm text-gray-500">No closed orders.</p>
-                ) : (
-                  closedOrders.map((o) => (
-                    <div key={o.id} className="border rounded-2xl p-4">
-                      <p className="font-medium">{o.symbol}</p>
-                      <p className="text-sm text-gray-500">
-                        {String(o.type || "").toUpperCase()} • Lot{" "}
-                        {Number(o.lot_size || 0).toFixed(2)} • Units{" "}
-                        {Number(o.units || 0).toFixed(2)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Open: {Number(o.open_price || 0).toFixed(4)} • Close:{" "}
-                        {Number(o.close_price || 0).toFixed(4)}
-                      </p>
-                      <p
-                        className={`text-sm font-medium ${Number(o.profit || 0) >= 0
-                            ? "text-green-600"
-                            : "text-red-500"
-                          }`}
-                      >
-                        PnL: {Number(o.profit || 0).toFixed(2)}
+            <div className="space-y-3 max-h-[800px] overflow-y-auto pr-1">
+              {filteredSections.map((section) => (
+                <div key={section.title} className={`rounded-2xl border p-3 ${panelClass}`}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div>
+                      <h3 className="font-semibold">{section.title}</h3>
+                      <p className={`text-xs ${mutedText}`}>
+                        {section.marketType.toUpperCase()} • Spread {section.spread}
                       </p>
                     </div>
-                  ))
-                )}
+                    <span className={`text-xs ${mutedText}`}>{section.items.length}</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {section.items.map((item) => {
+                      const active = item.tvSymbol === currentSymbol;
+
+                      return (
+                        <button
+                          key={item.tvSymbol}
+                          onClick={() => setSelectedMarket(item)}
+                          className={`w-full flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ${
+                            active ? sectionButtonActive : sectionButtonInactive
+                          }`}
+                        >
+                          <div>
+                            <div className="font-medium">{item.label}</div>
+                            <div
+                              className={`text-xs ${
+                                active
+                                  ? isDark
+                                    ? "text-slate-700"
+                                    : "text-slate-200"
+                                  : mutedText
+                              }`}
+                            >
+                              {item.tvSymbol}
+                            </div>
+                          </div>
+                          <ChevronRight size={16} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
+                  <Wallet size={16} />
+                  Balance
+                </div>
+                <div className="mt-2 text-2xl font-semibold">{availableBalance.toFixed(2)}</div>
+              </div>
+
+              <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
+                  <TrendingUp size={16} />
+                  Equity
+                </div>
+                <div className="mt-2 text-2xl font-semibold">{equity.toFixed(2)}</div>
+              </div>
+
+              <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
+                  <Activity size={16} />
+                  Floating PnL
+                </div>
+                <div
+                  className={`mt-2 text-2xl font-semibold ${
+                    floatingPnL >= 0 ? "text-green-600" : "text-red-500"
+                  }`}
+                >
+                  {floatingPnL >= 0 ? "+" : ""}
+                  {floatingPnL.toFixed(2)}
+                </div>
+              </div>
+
+              <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
+                  <Wallet size={16} />
+                  Margin Used
+                </div>
+                <div className="mt-2 text-2xl font-semibold">{marginUsed.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">{selectedMarket.label}</h3>
+                <p className={`text-sm ${mutedText}`}>
+                  Live price:{" "}
+                  <span className="font-semibold">
+                    {livePrice ? livePrice.toFixed(4) : "-"}
+                  </span>
+                  {" • "}Contract size: {selectedMarket.contractSize || 100000}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchProfile();
+                    fetchLivePrice();
+                    fetchOrders();
+                    toast.success("Refreshed");
+                  }}
+                  className={`inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg ${
+                    isDark
+                      ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                      : "border-slate-300 bg-white hover:bg-slate-100"
+                  }`}
+                >
+                  <RefreshCw size={16} />
+                  Refresh
+                </button>
+
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className={`inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg ${
+                    isDark
+                      ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                      : "border-slate-300 bg-white hover:bg-slate-100"
+                  }`}
+                >
+                  {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </button>
+              </div>
+            </div>
+
+            <div
+              ref={chartWrapperRef}
+              className={`w-full relative rounded-xl overflow-hidden border ${
+                isDark ? "bg-black border-slate-700" : "bg-white border-slate-200"
+              } ${isFullscreen ? "h-[100vh]" : "h-[500px]"}`}
+            >
+              {loading && (
+                <div className="absolute inset-0 flex items-center justify-center text-white z-10">
+                  Loading Chart...
+                </div>
+              )}
+              <div id={CONTAINER_ID} className="w-full h-full" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+              <div className="flex items-center gap-2">
+                <label className={`text-sm whitespace-nowrap ${mutedText}`}>Lot Size</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={0.01}
+                  readOnly
+                  className={`border px-3 py-2 rounded-lg w-28 ${
+                    isDark
+                      ? "bg-slate-950 border-slate-700 text-slate-100"
+                      : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className={`text-sm whitespace-nowrap ${mutedText}`}>
+                  Trigger Price
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  value={triggerPrice}
+                  onChange={(e) => setTriggerPrice(e.target.value)}
+                  placeholder={livePrice ? String(livePrice) : "Enter trigger"}
+                  className={`border px-3 py-2 rounded-lg w-full ${
+                    isDark
+                      ? "bg-slate-950 border-slate-700 text-slate-100"
+                      : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-6 gap-3">
+              <button
+                onClick={() => placeOrder("buy")}
+                disabled={orderLoading || !canTrade}
+                className={`${actionButtonBase} bg-green-600 hover:bg-green-700 text-white`}
+              >
+                {orderLoading ? "Loading..." : "BUY MARKET"}
+              </button>
+
+              <button
+                onClick={() => placeOrder("sell")}
+                disabled={orderLoading || !canTrade}
+                className={`${actionButtonBase} bg-red-600 hover:bg-red-700 text-white`}
+              >
+                {orderLoading ? "Loading..." : "SELL MARKET"}
+              </button>
+
+              <button
+                onClick={() => placeOrder("buy_limit")}
+                disabled={orderLoading || !canTrade}
+                className={`${actionButtonBase} bg-emerald-700 hover:bg-emerald-800 text-white`}
+              >
+                {orderLoading ? "Loading..." : "BUY LIMIT"}
+              </button>
+
+              <button
+                onClick={() => placeOrder("sell_limit")}
+                disabled={orderLoading || !canTrade}
+                className={`${actionButtonBase} bg-rose-700 hover:bg-rose-800 text-white`}
+              >
+                {orderLoading ? "Loading..." : "SELL LIMIT"}
+              </button>
+
+              <button
+                onClick={() => placeOrder("buy_stop")}
+                disabled={orderLoading || !canTrade}
+                className={`${actionButtonBase} bg-sky-700 hover:bg-sky-800 text-white`}
+              >
+                {orderLoading ? "Loading..." : "BUY STOP"}
+              </button>
+
+              <button
+                onClick={() => placeOrder("sell_stop")}
+                disabled={orderLoading || !canTrade}
+                className={`${actionButtonBase} bg-orange-700 hover:bg-orange-800 text-white`}
+              >
+                {orderLoading ? "Loading..." : "SELL STOP"}
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="md:hidden space-y-4">
+                <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold">Open Orders</h3>
+                    <span className={`text-sm ${mutedText}`}>
+                      {refreshingOrders ? "Refreshing..." : openOrders.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                    {openOrders.length === 0 ? (
+                      <p className={`text-sm ${mutedText}`}>No open orders.</p>
+                    ) : (
+                      openOrders.map((order) => (
+                        <OrdersMobileCard key={order.id} order={order} type="open" />
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold">Pending Orders</h3>
+                    <span className={`text-sm ${mutedText}`}>{pendingOrders.length}</span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                    {pendingOrders.length === 0 ? (
+                      <p className={`text-sm ${mutedText}`}>No pending orders.</p>
+                    ) : (
+                      pendingOrders.map((order) => (
+                        <OrdersMobileCard key={order.id} order={order} type="pending" />
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className={`rounded-2xl border p-4 ${panelClass}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold">Closed Orders</h3>
+                    <span className={`text-sm ${mutedText}`}>{closedOrders.length}</span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                    {closedOrders.length === 0 ? (
+                      <p className={`text-sm ${mutedText}`}>No closed orders.</p>
+                    ) : (
+                      closedOrders.map((order) => (
+                        <OrdersMobileCard key={order.id} order={order} type="closed" />
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden md:block space-y-4">
+                <OrdersDesktopTable title="Open Orders" items={openOrders} type="open" />
+                <OrdersDesktopTable title="Pending Orders" items={pendingOrders} type="pending" />
+                <OrdersDesktopTable title="Closed Orders" items={closedOrders} type="closed" />
               </div>
             </div>
           </div>

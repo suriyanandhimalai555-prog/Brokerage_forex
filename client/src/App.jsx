@@ -139,6 +139,14 @@ const App = () => {
 
         <Route path="avg-terminal" element={<TradingTerminal />} />
       </Route>
+      <Route
+  path="/terminal"
+  element={
+    <ProtectedRoute allowedRoles={["user"]}>
+      <TradingTerminal />
+    </ProtectedRoute>
+  }
+/>
     </Routes>
   );
 };
