@@ -168,6 +168,8 @@ const TradingTerminal = () => {
 
   const [livePrice, setLivePrice] = useState(0);
   const [balance, setBalance] = useState(0);
+  const [accounts, setAccounts] = useState([]);
+  const [activeAccount, setActiveAccount] = useState(null);
   const [orders, setOrders] = useState([]);
   const [refreshingOrders, setRefreshingOrders] = useState(false);
   const [triggerPrice, setTriggerPrice] = useState("");
@@ -226,6 +228,7 @@ const TradingTerminal = () => {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem("token");
+
       if (!token) return;
 
       const res = await fetch("http://localhost:5000/api/auth/me", {
@@ -236,11 +239,76 @@ const TradingTerminal = () => {
 
       const data = await res.json();
 
-      if (res.ok && data?.user?.balance !== undefined) {
-        setBalance(Number(data.user.balance || 0));
+      if (!res.ok) return;
+
+      /*
+      |--------------------------------------------------------------------------
+      | ACTIVE ACCOUNT
+      |--------------------------------------------------------------------------
+      */
+
+      if (data?.user?.trading_account) {
+        setActiveAccount(data.user.trading_account);
+        setBalance(Number(data.user.trading_account.balance || 0));
+      } else {
+        setActiveAccount(null);
+        setBalance(0);
       }
     } catch (err) {
-      console.error("Profile fetch error:", err);
+      console.error(err);
+    }
+  };
+
+  const fetchAccounts = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) return;
+
+      const res = await fetch("http://localhost:5000/api/accounts/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) return;
+
+      setAccounts(Array.isArray(data.accounts) ? data.accounts : []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const switchAccount = async (accountId) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(
+        `http://localhost:5000/api/accounts/active/${accountId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data?.message || "Failed to switch account");
+        return;
+      }
+
+      toast.success("Account switched");
+
+      await fetchProfile();
+      await fetchOrders();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to switch account");
     }
   };
 
@@ -337,6 +405,7 @@ const TradingTerminal = () => {
 
   useEffect(() => {
     fetchProfile();
+    fetchAccounts();
     fetchLivePrice();
     fetchOrders();
 
@@ -602,9 +671,8 @@ const TradingTerminal = () => {
 
     return (
       <div
-        className={`rounded-2xl border p-4 ${
-          isDark ? "border-slate-700 bg-slate-950/40" : "border-slate-200 bg-white"
-        }`}
+        className={`rounded-2xl border p-4 ${isDark ? "border-slate-700 bg-slate-950/40" : "border-slate-200 bg-white"
+          }`}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -618,9 +686,8 @@ const TradingTerminal = () => {
 
           {isOpen && (
             <div
-              className={`text-sm font-semibold ${
-                pnl >= 0 ? "text-green-600" : "text-red-500"
-              }`}
+              className={`text-sm font-semibold ${pnl >= 0 ? "text-green-600" : "text-red-500"
+                }`}
             >
               PnL: {formatPnL(pnl)}
             </div>
@@ -756,22 +823,20 @@ const TradingTerminal = () => {
                   return (
                     <tr
                       key={order.id}
-                      className={`border-t ${
-                        isDark ? "border-slate-800 hover:bg-slate-950/50" : "border-slate-100 hover:bg-slate-50"
-                      } transition`}
+                      className={`border-t ${isDark ? "border-slate-800 hover:bg-slate-950/50" : "border-slate-100 hover:bg-slate-50"
+                        } transition`}
                     >
                       <td className="px-4 py-4 font-semibold">
                         {order.display_symbol || cleanSymbol(order.symbol)}
                       </td>
                       <td className="px-4 py-4">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                            isOpen
-                              ? "bg-emerald-500/10 text-emerald-600"
-                              : isPending
-                                ? "bg-amber-500/10 text-amber-600"
-                                : "bg-slate-500/10 text-slate-500"
-                          }`}
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${isOpen
+                            ? "bg-emerald-500/10 text-emerald-600"
+                            : isPending
+                              ? "bg-amber-500/10 text-amber-600"
+                              : "bg-slate-500/10 text-slate-500"
+                            }`}
                         >
                           {orderTypeLabel(order.type)}
                         </span>
@@ -793,9 +858,8 @@ const TradingTerminal = () => {
                       <td className="px-4 py-4">{Number(order.margin || 0).toFixed(2)}</td>
                       <td className="px-4 py-4">1:{Number(order.leverage || 100)}</td>
                       <td
-                        className={`px-4 py-4 font-semibold ${
-                          pnl >= 0 ? "text-green-600" : "text-red-500"
-                        }`}
+                        className={`px-4 py-4 font-semibold ${pnl >= 0 ? "text-green-600" : "text-red-500"
+                          }`}
                       >
                         {formatPnL(pnl)}
                       </td>
@@ -844,11 +908,10 @@ const TradingTerminal = () => {
               <button
                 type="button"
                 onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
-                  isDark
-                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-                    : "border-slate-300 bg-white hover:bg-slate-100"
-                }`}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${isDark
+                  ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                  : "border-slate-300 bg-white hover:bg-slate-100"
+                  }`}
               >
                 {isDark ? <Sun size={16} /> : <Moon size={16} />}
                 {/* {isDark ? "Light Mode" : "Dark Mode"} */}
@@ -888,20 +951,18 @@ const TradingTerminal = () => {
                         <button
                           key={item.tvSymbol}
                           onClick={() => setSelectedMarket(item)}
-                          className={`w-full flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ${
-                            active ? sectionButtonActive : sectionButtonInactive
-                          }`}
+                          className={`w-full flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ${active ? sectionButtonActive : sectionButtonInactive
+                            }`}
                         >
                           <div>
                             <div className="font-medium">{item.label}</div>
                             <div
-                              className={`text-xs ${
-                                active
-                                  ? isDark
-                                    ? "text-slate-700"
-                                    : "text-slate-200"
-                                  : mutedText
-                              }`}
+                              className={`text-xs ${active
+                                ? isDark
+                                  ? "text-slate-700"
+                                  : "text-slate-200"
+                                : mutedText
+                                }`}
                             >
                               {item.tvSymbol}
                             </div>
@@ -917,6 +978,67 @@ const TradingTerminal = () => {
           </div>
 
           <div className="space-y-4">
+            <div
+              className={`rounded-2xl border p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${panelClass}`}
+            >
+              <div>
+                <div className="text-sm text-slate-500">
+                  Active Trading Account
+                </div>
+
+                {activeAccount ? (
+                  <div className="mt-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-lg font-semibold">
+                        #{activeAccount.account_no}
+                      </div>
+
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${activeAccount.account_type === "demo"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-green-100 text-green-700"
+                          }`}
+                      >
+                        {String(activeAccount.account_type).toUpperCase()}
+                      </span>
+
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                        {activeAccount.platform}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 text-sm text-slate-500">
+                      Balance: {Number(activeAccount.balance || 0).toFixed(2)}{" "}
+                      {activeAccount.currency}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-1 text-sm text-red-500">
+                    No active account selected
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {accounts.map((acc) => {
+                  const active = activeAccount?.id === acc.id;
+
+                  return (
+                    <button
+                      key={acc.id}
+                      onClick={() => switchAccount(acc.id)}
+                      className={`px-4 py-2 rounded-xl border text-sm font-medium transition ${active
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "border-slate-300 hover:bg-slate-100"
+                        }`}
+                    >
+                      {acc.account_type === "demo" ? "Demo" : "Real"} •{" "}
+                      {Number(acc.balance || 0).toFixed(2)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
               <div className={`rounded-2xl border p-4 ${panelClass}`}>
                 <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
@@ -940,9 +1062,8 @@ const TradingTerminal = () => {
                   Floating PnL
                 </div>
                 <div
-                  className={`mt-2 text-2xl font-semibold ${
-                    floatingPnL >= 0 ? "text-green-600" : "text-red-500"
-                  }`}
+                  className={`mt-2 text-2xl font-semibold ${floatingPnL >= 0 ? "text-green-600" : "text-red-500"
+                    }`}
                 >
                   {floatingPnL >= 0 ? "+" : ""}
                   {floatingPnL.toFixed(2)}
@@ -979,11 +1100,10 @@ const TradingTerminal = () => {
                     fetchOrders();
                     toast.success("Refreshed");
                   }}
-                  className={`inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg ${
-                    isDark
-                      ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-                      : "border-slate-300 bg-white hover:bg-slate-100"
-                  }`}
+                  className={`inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg ${isDark
+                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                    : "border-slate-300 bg-white hover:bg-slate-100"
+                    }`}
                 >
                   <RefreshCw size={16} />
                   Refresh
@@ -992,11 +1112,10 @@ const TradingTerminal = () => {
                 <button
                   type="button"
                   onClick={toggleFullscreen}
-                  className={`inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg ${
-                    isDark
-                      ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-                      : "border-slate-300 bg-white hover:bg-slate-100"
-                  }`}
+                  className={`inline-flex items-center justify-center gap-2 border px-3 py-2 rounded-lg ${isDark
+                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                    : "border-slate-300 bg-white hover:bg-slate-100"
+                    }`}
                 >
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                   {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
@@ -1006,9 +1125,8 @@ const TradingTerminal = () => {
 
             <div
               ref={chartWrapperRef}
-              className={`w-full relative rounded-xl overflow-hidden border ${
-                isDark ? "bg-black border-slate-700" : "bg-white border-slate-200"
-              } ${isFullscreen ? "h-[100vh]" : "h-[500px]"}`}
+              className={`w-full relative rounded-xl overflow-hidden border ${isDark ? "bg-black border-slate-700" : "bg-white border-slate-200"
+                } ${isFullscreen ? "h-[100vh]" : "h-[500px]"}`}
             >
               {loading && (
                 <div className="absolute inset-0 flex items-center justify-center text-white z-10">
@@ -1027,11 +1145,10 @@ const TradingTerminal = () => {
                   min="0.01"
                   value={0.01}
                   readOnly
-                  className={`border px-3 py-2 rounded-lg w-28 ${
-                    isDark
-                      ? "bg-slate-950 border-slate-700 text-slate-100"
-                      : "bg-white border-slate-300 text-slate-900"
-                  }`}
+                  className={`border px-3 py-2 rounded-lg w-28 ${isDark
+                    ? "bg-slate-950 border-slate-700 text-slate-100"
+                    : "bg-white border-slate-300 text-slate-900"
+                    }`}
                 />
               </div>
 
@@ -1046,11 +1163,10 @@ const TradingTerminal = () => {
                   value={triggerPrice}
                   onChange={(e) => setTriggerPrice(e.target.value)}
                   placeholder={livePrice ? String(livePrice) : "Enter trigger"}
-                  className={`border px-3 py-2 rounded-lg w-full ${
-                    isDark
-                      ? "bg-slate-950 border-slate-700 text-slate-100"
-                      : "bg-white border-slate-300 text-slate-900"
-                  }`}
+                  className={`border px-3 py-2 rounded-lg w-full ${isDark
+                    ? "bg-slate-950 border-slate-700 text-slate-100"
+                    : "bg-white border-slate-300 text-slate-900"
+                    }`}
                 />
               </div>
             </div>

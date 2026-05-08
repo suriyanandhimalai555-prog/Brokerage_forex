@@ -106,7 +106,38 @@ export const loginUser = async (req, res) => {
 };
 
 export const me = async (req, res) => {
-  return res.json({ user: req.user });
+  try {
+    return res.json({
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role,
+
+        active_account_id: req.user.active_account_id,
+
+        trading_account: req.user.trading_account_id
+          ? {
+              id: req.user.trading_account_id,
+              account_no: req.user.account_no,
+              balance: Number(req.user.balance || 0),
+              account_type: req.user.account_type,
+              platform: req.user.platform,
+              currency: req.user.currency,
+              leverage: req.user.leverage,
+              status: req.user.status,
+            }
+          : null,
+
+        balance: Number(req.user.balance || 0),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
 export const logoutUser = async (req, res) => {
