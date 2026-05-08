@@ -430,3 +430,204 @@ export const oxaPayWebhook = async (req, res) => {
         return res.status(500).send("Webhook error");
     }
 };
+
+export const getPerformanceStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const accountId =
+      req.query.account_id || null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACCOUNT FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    let whereClause = `WHERE o.user_id = $1`;
+    let values = [userId];
+
+    if (accountId) {
+      whereClause += ` AND o.trading_account_id = $2`;
+      values.push(accountId);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUMMARY
+    |--------------------------------------------------------------------------
+    */
+
+    const summaryQuery = `
+      SELECT
+        COALESCE(SUM(
+          CASE
+            WHEN o.status = 'closed'
+            THEN o.profit
+            ELSE 0
+          END
+        ), 0) AS net_profit,
+
+        COALESCE(SUM(
+          CASE
+            WHEN o.status = 'closed'
+            AND o.profit > 0
+            THEN o.profit
+            ELSE 0
+          END
+        ), 0) AS total_profit,
+
+        COALESCE(SUM(
+          CASE
+            WHEN o.status = 'closed'
+            AND o.profit < 0
+            THEN o.profit
+            ELSE 0
+          END
+        ), 0) AS total_loss,
+
+        COUNT(*) FILTER (
+          WHERE o.status = 'closed'
+        ) AS closed_orders,
+
+        COUNT(*) FILTER (
+          WHERE o.status = 'closed'
+          AND o.profit > 0
+        ) AS profitable_orders,
+
+        COUNT(*) FILTER (
+          WHERE o.status = 'closed'
+          AND o.profit < 0
+        ) AS unprofitable_orders,
+
+        COALESCE(SUM(o.margin), 0) AS trading_volume
+
+      FROM orders o
+      ${whereClause}
+    `;
+
+    const summaryResult = await pool.query(
+      summaryQuery,
+      values
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | EQUITY
+    |--------------------------------------------------------------------------
+    */
+
+    let equityQuery = `
+      SELECT
+        COALESCE(SUM(balance), 0) AS equity
+      FROM trading_accounts
+      WHERE user_id = $1
+    `;
+
+    let equityValues = [userId];
+
+    if (accountId) {
+      equityQuery += ` AND id = $2`;
+      equityValues.push(accountId);
+    }
+
+    const equityResult = await pool.query(
+      equityQuery,
+      equityValues
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY CHART
+    |--------------------------------------------------------------------------
+    */
+
+    const chartQuery = `
+      SELECT
+        TO_CHAR(
+          DATE_TRUNC('month', created_at),
+          'Mon'
+        ) AS month,
+
+        COALESCE(SUM(
+          CASE
+            WHEN profit > 0
+            THEN profit
+            ELSE 0
+          END
+        ), 0) AS profit,
+
+        COALESCE(SUM(
+          CASE
+            WHEN profit < 0
+            THEN profit
+            ELSE 0
+          END
+        ), 0) AS loss,
+
+        COUNT(*) AS orders,
+
+        COALESCE(SUM(margin), 0) AS volume
+
+      FROM orders o
+
+      ${whereClause}
+
+      GROUP BY DATE_TRUNC('month', created_at)
+
+      ORDER BY DATE_TRUNC('month', created_at)
+    `;
+
+    const chartResult = await pool.query(
+      chartQuery,
+      values
+    );
+
+    return res.json({
+      summary: {
+        net_profit: Number(
+          summaryResult.rows[0].net_profit || 0
+        ),
+
+        total_profit: Number(
+          summaryResult.rows[0].total_profit || 0
+        ),
+
+        total_loss: Number(
+          summaryResult.rows[0].total_loss || 0
+        ),
+
+        closed_orders: Number(
+          summaryResult.rows[0].closed_orders || 0
+        ),
+
+        profitable_orders: Number(
+          summaryResult.rows[0]
+            .profitable_orders || 0
+        ),
+
+        unprofitable_orders: Number(
+          summaryResult.rows[0]
+            .unprofitable_orders || 0
+        ),
+
+        trading_volume: Number(
+          summaryResult.rows[0]
+            .trading_volume || 0
+        ),
+
+        equity: Number(
+          equityResult.rows[0].equity || 0
+        ),
+      },
+
+      charts: chartResult.rows,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Failed to fetch performance stats",
+    });
+  }
+};

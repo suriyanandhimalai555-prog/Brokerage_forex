@@ -17,8 +17,22 @@ const getContractSize = (symbol) => {
     "AUDJPY", "AUDNZD", "AUDCAD", "CADJPY", "CHFJPY", "NZDJPY",
     "USDINR", "USDTRY", "USDZAR", "USDMXN", "USDTHB", "USDSGD", "USDHKD", "USDAED",
   ];
+
   const metalPairs = ["XAUUSD", "XAGUSD", "XPTUSD"];
-  const indexCodes = ["US30", "NAS100", "SPX500", "DAX40", "FTSE100", "DJI", "NDX", "SPX", "DAX", "UKX"];
+
+  const indexCodes = [
+    "US30",
+    "NAS100",
+    "SPX500",
+    "DAX40",
+    "FTSE100",
+    "DJI",
+    "NDX",
+    "SPX",
+    "DAX",
+    "UKX",
+  ];
+
   const energyCodes = ["USOIL", "UKOIL", "WTI", "BRENT", "NATGAS"];
 
   if (cryptoPairs.some((code) => s.includes(code))) return 1;
@@ -41,9 +55,19 @@ const cleanSymbol = (symbol) => {
     .replace(/^BINANCE:/, "");
 
   if (raw.includes("/")) return raw;
-  if (/^[A-Z]{6}$/.test(raw)) return `${raw.slice(0, 3)}/${raw.slice(3)}`;
-  if (/^[A-Z0-9]+USDT$/.test(raw)) return `${raw.slice(0, -4)}/USDT`;
-  if (/^[A-Z0-9]+USD$/.test(raw) && raw.length > 3) return `${raw.slice(0, -3)}/USD`;
+
+  if (/^[A-Z]{6}$/.test(raw)) {
+    return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  }
+
+  if (/^[A-Z0-9]+USDT$/.test(raw)) {
+    return `${raw.slice(0, -4)}/USDT`;
+  }
+
+  if (/^[A-Z0-9]+USD$/.test(raw) && raw.length > 3) {
+    return `${raw.slice(0, -3)}/USD`;
+  }
+
   return raw;
 };
 
@@ -66,62 +90,96 @@ const normalizeOrderType = (type) => {
 };
 
 const isPendingType = (type) =>
-  ["buy_limit", "sell_limit", "buy_stop", "sell_stop"].includes(String(type || "").toLowerCase());
+  ["buy_limit", "sell_limit", "buy_stop", "sell_stop"].includes(
+    String(type || "").toLowerCase()
+  );
 
 const getSideFromType = (type) =>
-  String(type || "").toLowerCase().startsWith("buy") ? "buy" : "sell";
+  String(type || "").toLowerCase().startsWith("buy")
+    ? "buy"
+    : "sell";
 
-const calculatePnL = ({ type, openPrice, closePrice, units }) => {
+const calculatePnL = ({
+  type,
+  openPrice,
+  closePrice,
+  units,
+}) => {
   const entry = Number(openPrice);
   const exit = Number(closePrice);
   const qty = Number(units);
 
-  if ([entry, exit, qty].some((v) => Number.isNaN(v))) return 0;
+  if ([entry, exit, qty].some((v) => Number.isNaN(v))) {
+    return 0;
+  }
 
-  if (getSideFromType(type) === "buy") return (exit - entry) * qty;
+  if (getSideFromType(type) === "buy") {
+    return (exit - entry) * qty;
+  }
+
   return (entry - exit) * qty;
 };
 
-const shouldTriggerPendingOrder = (orderType, triggerPrice, marketPrice) => {
+const shouldTriggerPendingOrder = (
+  orderType,
+  triggerPrice,
+  marketPrice
+) => {
   const trigger = Number(triggerPrice);
   const price = Number(marketPrice);
 
-  if (Number.isNaN(trigger) || Number.isNaN(price)) return false;
+  if (Number.isNaN(trigger) || Number.isNaN(price)) {
+    return false;
+  }
 
   switch (String(orderType).toLowerCase()) {
     case "buy_limit":
       return price <= trigger;
+
     case "sell_limit":
       return price >= trigger;
+
     case "buy_stop":
       return price >= trigger;
+
     case "sell_stop":
       return price <= trigger;
+
     default:
       return false;
   }
 };
 
 const mapOrderForResponse = (order) => {
-  const isPending = String(order.status || "").toLowerCase() === "pending";
+  const isPending =
+    String(order.status || "").toLowerCase() === "pending";
 
   return {
     ...order,
     symbol: cleanSymbol(order.symbol),
     display_symbol: cleanSymbol(order.symbol),
+
     side: getSideFromType(order.type),
+
     open_price:
-      isPending || order.open_price === null || Number(order.open_price) === 0
+      isPending ||
+      order.open_price === null ||
+      Number(order.open_price) === 0
         ? null
         : Number(order.open_price),
+
     trigger_price:
-      order.trigger_price === null || order.trigger_price === undefined
+      order.trigger_price === null ||
+      order.trigger_price === undefined
         ? null
         : Number(order.trigger_price),
   };
 };
 
-export const processPendingOrdersBySymbol = async (symbol, marketPrice) => {
+export const processPendingOrdersBySymbol = async (
+  symbol,
+  marketPrice
+) => {
   const client = await pool.connect();
 
   try {
@@ -132,7 +190,7 @@ export const processPendingOrdersBySymbol = async (symbol, marketPrice) => {
       SELECT *
       FROM orders
       WHERE UPPER(symbol) = UPPER($1)
-        AND status = 'pending'
+      AND status = 'pending'
       ORDER BY id ASC
       FOR UPDATE
       `,
@@ -167,10 +225,12 @@ export const processPendingOrdersBySymbol = async (symbol, marketPrice) => {
     }
 
     await client.query("COMMIT");
+
     return executed;
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Pending order execution error:", err);
+
     return [];
   } finally {
     client.release();
@@ -182,9 +242,19 @@ export const placeOrder = async (req, res) => {
 
   try {
     const user_id = req.user?.id;
+    const trading_account_id =
+      req.user?.trading_account_id;
 
     if (!user_id) {
-      return res.status(401).json({ message: "Invalid token" });
+      return res.status(401).json({
+        message: "Invalid token",
+      });
+    }
+
+    if (!trading_account_id) {
+      return res.status(400).json({
+        message: "No active trading account selected",
+      });
     }
 
     const {
@@ -196,66 +266,105 @@ export const placeOrder = async (req, res) => {
       leverage = 100,
     } = req.body;
 
-    if (!symbol || !type || lot_size === undefined || lot_size === null) {
-      return res.status(400).json({ message: "Missing fields" });
+    if (
+      !symbol ||
+      !type ||
+      lot_size === undefined ||
+      lot_size === null
+    ) {
+      return res.status(400).json({
+        message: "Missing fields",
+      });
     }
 
     const normalizedType = normalizeOrderType(type);
 
     if (!normalizedType) {
-      return res.status(400).json({ message: "Invalid order type" });
+      return res.status(400).json({
+        message: "Invalid order type",
+      });
     }
 
     const lot = Number(lot_size);
     const lev = Number(leverage);
+
     const pending = isPendingType(normalizedType);
-    const entryPrice = pending ? Number(trigger_price) : Number(price);
+
+    const entryPrice = pending
+      ? Number(trigger_price)
+      : Number(price);
 
     if (Number.isNaN(lot) || lot <= 0) {
-      return res.status(400).json({ message: "Invalid lot size" });
+      return res.status(400).json({
+        message: "Invalid lot size",
+      });
     }
 
     if (Number.isNaN(lev) || lev <= 0) {
-      return res.status(400).json({ message: "Invalid leverage" });
+      return res.status(400).json({
+        message: "Invalid leverage",
+      });
     }
 
     if (Number.isNaN(entryPrice) || entryPrice <= 0) {
       return res.status(400).json({
-        message: pending ? "Invalid trigger price" : "Invalid price",
+        message: pending
+          ? "Invalid trigger price"
+          : "Invalid price",
       });
     }
 
     const contractSize = getContractSize(symbol);
+
     const units = lot * contractSize;
+
     const margin = units / lev;
 
     await client.query("BEGIN");
 
     const balanceResult = await client.query(
-      "SELECT balance FROM users WHERE id = $1 FOR UPDATE",
-      [user_id]
+      `
+      SELECT balance
+      FROM trading_accounts
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [trading_account_id]
     );
 
     if (balanceResult.rowCount === 0) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ message: "User not found" });
+
+      return res.status(404).json({
+        message: "Trading account not found",
+      });
     }
 
-    const currentBalance = Number(balanceResult.rows[0].balance || 0);
+    const currentBalance = Number(
+      balanceResult.rows[0].balance || 0
+    );
 
     if (currentBalance < margin) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ message: "Insufficient balance" });
+
+      return res.status(400).json({
+        message: "Insufficient balance",
+      });
     }
 
     await client.query(
-      "UPDATE users SET balance = balance - $1 WHERE id = $2",
-      [margin, user_id]
+      `
+      UPDATE trading_accounts
+      SET balance = balance - $1
+      WHERE id = $2
+      `,
+      [margin, trading_account_id]
     );
 
     const order = await createOrder(
       {
         user_id,
+        trading_account_id,
         symbol,
         type: normalizedType,
         side: getSideFromType(normalizedType),
@@ -279,8 +388,12 @@ export const placeOrder = async (req, res) => {
     });
   } catch (err) {
     await client.query("ROLLBACK");
+
     console.error(err);
-    return res.status(500).json({ message: "Server error" });
+
+    return res.status(500).json({
+      message: "Server error",
+    });
   } finally {
     client.release();
   }
@@ -291,17 +404,31 @@ export const getOrders = async (req, res) => {
     const user_id = req.user?.id;
 
     if (!user_id) {
-      return res.status(401).json({ message: "Invalid token" });
+      return res.status(401).json({
+        message: "Invalid token",
+      });
     }
 
-    const orders = await getOrdersByUser(user_id);
+    const trading_account_id =
+      req.query.account_id ||
+      req.user?.trading_account_id;
+
+    const orders = await getOrdersByUser(
+      user_id,
+      trading_account_id
+    );
 
     return res.json({
-      orders: Array.isArray(orders) ? orders.map(mapOrderForResponse) : [],
+      orders: Array.isArray(orders)
+        ? orders.map(mapOrderForResponse)
+        : [],
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Error fetching orders" });
+
+    return res.status(500).json({
+      message: "Error fetching orders",
+    });
   }
 };
 
@@ -310,27 +437,45 @@ export const closeOrder = async (req, res) => {
 
   try {
     const user_id = req.user?.id;
+
     const { id } = req.params;
+
     const { close_price } = req.body;
 
     if (!user_id) {
-      return res.status(401).json({ message: "Invalid token" });
+      return res.status(401).json({
+        message: "Invalid token",
+      });
     }
 
-    if (!id || close_price === undefined || close_price === null) {
-      return res.status(400).json({ message: "Missing fields" });
+    if (
+      !id ||
+      close_price === undefined ||
+      close_price === null
+    ) {
+      return res.status(400).json({
+        message: "Missing fields",
+      });
     }
 
-    const order = await getOpenOrderByIdAndUser(id, user_id, client);
+    const order = await getOpenOrderByIdAndUser(
+      id,
+      user_id,
+      client
+    );
 
     if (!order) {
-      return res.status(404).json({ message: "Order not found" });
+      return res.status(404).json({
+        message: "Order not found",
+      });
     }
 
     const exitPrice = Number(close_price);
 
     if (Number.isNaN(exitPrice) || exitPrice <= 0) {
-      return res.status(400).json({ message: "Invalid close price" });
+      return res.status(400).json({
+        message: "Invalid close price",
+      });
     }
 
     const profit = calculatePnL({
@@ -354,16 +499,26 @@ export const closeOrder = async (req, res) => {
     );
 
     const marginToRelease = Number(order.margin || 0);
-    const balanceChange = marginToRelease + profit;
+
+    const balanceChange =
+      marginToRelease + profit;
 
     await client.query(
-      "UPDATE users SET balance = balance + $1 WHERE id = $2",
-      [balanceChange, user_id]
+      `
+      UPDATE trading_accounts
+      SET balance = balance + $1
+      WHERE id = $2
+      `,
+      [balanceChange, req.user.trading_account_id]
     );
 
     const balanceResult = await client.query(
-      "SELECT balance FROM users WHERE id = $1",
-      [user_id]
+      `
+      SELECT balance
+      FROM trading_accounts
+      WHERE id = $1
+      `,
+      [req.user.trading_account_id]
     );
 
     await client.query("COMMIT");
@@ -371,12 +526,18 @@ export const closeOrder = async (req, res) => {
     return res.json({
       success: true,
       order: mapOrderForResponse(closedOrder),
-      balance: Number(balanceResult.rows[0].balance || 0),
+      balance: Number(
+        balanceResult.rows[0].balance || 0
+      ),
     });
   } catch (err) {
     await client.query("ROLLBACK");
+
     console.error(err);
-    return res.status(500).json({ message: "Error closing order" });
+
+    return res.status(500).json({
+      message: "Error closing order",
+    });
   } finally {
     client.release();
   }

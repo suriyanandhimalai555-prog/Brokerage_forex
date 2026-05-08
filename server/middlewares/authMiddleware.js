@@ -22,9 +22,10 @@ export const protect = async (req, res, next) => {
     }
 
     const result = await pool.query(
-  `
+      `
   SELECT 
     u.id,
+    u.name,
     u.email,
     u.role,
     u.active_account_id,
@@ -45,8 +46,8 @@ export const protect = async (req, res, next) => {
 
   WHERE u.id = $1
   `,
-  [decoded.id]
-);
+      [decoded.id]
+    );
 
     if (result.rowCount === 0) {
       return res.status(401).json({ message: "User not found" });

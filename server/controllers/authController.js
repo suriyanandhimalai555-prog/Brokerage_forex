@@ -21,10 +21,10 @@ const cookieOptions = {
 
 export const registerUser = async (req, res) => {
   try {
-    const { email, password, partnerCode = null } = req.body;
+    const { name, email, password, partnerCode = null } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+    if ( !name || !email || !password) {
+      return res.status(400).json({ message: "Name, email and password are required" });
     }
 
     const exists = await pool.query(
@@ -39,10 +39,10 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO users (email, password, partner_code, role, balance)
-       VALUES ($1, $2, $3, 'user', 10000)
-       RETURNING id, email, role, balance`,
-      [email, hashedPassword, partnerCode]
+      `INSERT INTO users (name, email, password, partner_code, role, balance)
+       VALUES ($1, $2, $3, $4, 'user', 10000)
+       RETURNING id, name, email, role, balance`,
+      [name,email, hashedPassword, partnerCode]
     );
 
     const user = result.rows[0];
@@ -69,7 +69,7 @@ export const loginUser = async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT id, email, password, role, balance FROM users WHERE email = $1",
+      "SELECT id, name, email, password, role, balance FROM users WHERE email = $1",
       [email]
     );
 
@@ -86,6 +86,7 @@ export const loginUser = async (req, res) => {
 
     const user = {
       id: userRow.id,
+      name: userRow.name,
       email: userRow.email,
       role: userRow.role,
       balance: userRow.balance,
@@ -107,9 +108,38 @@ export const loginUser = async (req, res) => {
 
 export const me = async (req, res) => {
   try {
+
+    const accountsResult = await pool.query(
+      `
+      SELECT
+        account_type,
+        balance
+      FROM trading_accounts
+      WHERE user_id = $1
+      AND status = 'active'
+      `,
+      [req.user.id]
+    );
+
+    let realBalance = 0;
+    let demoBalance = 0;
+
+    accountsResult.rows.forEach((acc) => {
+
+      if (acc.account_type === "real") {
+        realBalance += Number(acc.balance || 0);
+      }
+
+      if (acc.account_type === "demo") {
+        demoBalance += Number(acc.balance || 0);
+      }
+
+    });
+
     return res.json({
       user: {
         id: req.user.id,
+        name: req.user.name,
         email: req.user.email,
         role: req.user.role,
 
@@ -129,8 +159,14 @@ export const me = async (req, res) => {
           : null,
 
         balance: Number(req.user.balance || 0),
+
+        wallets: {
+          real: realBalance,
+          demo: demoBalance,
+        },
       },
     });
+
   } catch (error) {
     console.error(error);
 

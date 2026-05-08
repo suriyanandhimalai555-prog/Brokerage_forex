@@ -302,12 +302,12 @@ const OpenAccount = () => {
         </div>
       </div>
 
-      <div className="border-t py-4 sticky bottom-0 bg-white">
+      <div className="border-t py-4 bottom-0 bg-white">
         <div className="max-w-6xl mx-auto flex justify-end">
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="bg-yellow-400 hover:bg-yellow-500 text-black px-8 py-3 rounded-lg font-semibold disabled:opacity-70 flex items-center gap-2"
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-8 py-3 rounded-lg font-semibold disabled:opacity-70 flex items-center gap-2"
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : null}
             {accountType === "demo" ? "Create account" : "Create & pay"}

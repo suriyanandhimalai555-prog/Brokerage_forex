@@ -6,7 +6,8 @@ import {
   getAccountPlans,
   listMyAccounts,
   restoreAccount,
-  setActiveAccount
+  setActiveAccount,
+  getPerformanceStats
 } from "../controllers/accountController.js";
 
 import { protect } from "../middlewares/authMiddleware.js";
@@ -19,5 +20,6 @@ router.post("/", protect, createAccount);
 router.patch("/:id/archive", protect, archiveAccount);
 router.patch("/:id/restore", protect, restoreAccount);
 router.patch("/active/:id", protect, setActiveAccount);
+router.get("/performance", protect, getPerformanceStats);
 
 export default router;

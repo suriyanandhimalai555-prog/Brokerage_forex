@@ -10,6 +10,7 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
 
   // ✅ NEW STATES
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [partnerCode, setPartnerCode] = useState("");
@@ -25,7 +26,7 @@ const Signup = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password, partnerCode }),
+        body: JSON.stringify({ name,email, password, partnerCode }),
       });
 
       const data = await res.json();
@@ -71,6 +72,22 @@ const Signup = () => {
             handleLogin();
           }}
         >
+
+          {/* NAME */}
+<div>
+  <label className="text-sm text-gray-600">Full Name</label>
+
+  <div className="flex items-center mt-1 border border-gray-200 rounded-xl px-3 bg-white focus-within:ring-2 focus-within:ring-blue-400">
+
+    <input
+      type="text"
+      placeholder="Enter your full name"
+      value={name}
+      onChange={(e) => setName(e.target.value)}
+      className="w-full py-3 bg-transparent outline-none text-gray-700"
+    />
+  </div>
+</div>
 
           {/* EMAIL */}
           <div>
