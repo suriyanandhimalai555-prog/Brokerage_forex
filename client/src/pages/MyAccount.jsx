@@ -104,8 +104,12 @@ const MyAccount = () => {
   };
 
   const openPayLink = (url) => {
-    if (!url) return;
-    window.location.href = url;
+    if (!url) {
+      toast.error("Payment link not found");
+      return;
+    }
+
+    window.open(url, "_blank");
   };
 
   return (
@@ -235,12 +239,12 @@ const MyAccount = () => {
 
                       <span
                         className={`px-2 py-0.5 rounded-full ${acc.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : acc.status === "pending_payment"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : acc.status === "archived"
-                                ? "bg-gray-200 text-gray-700"
-                                : "bg-red-100 text-red-700"
+                          ? "bg-green-100 text-green-700"
+                          : acc.status === "pending_payment"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : acc.status === "archived"
+                              ? "bg-gray-200 text-gray-700"
+                              : "bg-red-100 text-red-700"
                           }`}
                       >
                         {acc.status}
@@ -270,9 +274,11 @@ const MyAccount = () => {
                           {acc.status === "pending_payment" &&
                             acc.payment_url && (
                               <button
-                                onClick={() =>
-                                  openPayLink(acc.payment_url)
-                                }
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPayLink(acc.payment_url);
+                                }}
                                 className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
                               >
                                 <ExternalLink size={14} />
