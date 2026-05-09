@@ -271,20 +271,41 @@ const MyAccount = () => {
                             Account info
                           </button>
 
-                          {acc.status === "pending_payment" &&
-                            acc.payment_url && (
-                              <button
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openPayLink(acc.payment_url);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
-                              >
-                                <ExternalLink size={14} />
-                                Continue payment
-                              </button>
-                            )}
+                          {acc.status === "pending_payment" && (
+                            <button
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+
+                                navigate("/user/payment", {
+                                  state: {
+                                    account: acc,
+                                    payment: {
+                                      address: acc.payment_url,
+                                      qrCode:
+                                        acc.payment_raw?.qr_code ||
+                                        acc.payment_raw?.data?.qr_code ||
+                                        null,
+                                      payAmount:
+                                        acc.payment_raw?.pay_amount ||
+                                        acc.initial_balance,
+                                      amount: acc.initial_balance,
+                                      payCurrency:
+                                        acc.payment_raw?.pay_currency ||
+                                        "USDT",
+                                      network:
+                                        acc.payment_raw?.network ||
+                                        "TRC20",
+                                    },
+                                  },
+                                });
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <ExternalLink size={14} />
+                              Continue payment
+                            </button>
+                          )}
 
                           {acc.status !== "archived" ? (
                             <button

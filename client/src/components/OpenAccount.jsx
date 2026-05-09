@@ -5,7 +5,6 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
 const getToken = () => localStorage.getItem("token");
 
 const OpenAccount = () => {
@@ -14,6 +13,7 @@ const OpenAccount = () => {
   const [accountType, setAccountType] = useState("demo"); // demo | real
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState("standard");
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     currency: "USD",
@@ -22,8 +22,6 @@ const OpenAccount = () => {
     leverage: "1:2000",
     platform: "AVG Forex",
   });
-
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -117,20 +115,24 @@ const OpenAccount = () => {
         return;
       }
 
-      if (data?.payLink) {
-        toast.success("Payment created. Redirecting to OxaPay...");
-        window.location.href = data.payLink;
+      if (!data?.payment) {
+        toast.error("Payment details were not returned");
         return;
       }
 
-      toast.success(data?.message || "Account created");
-      navigate("/user/my-account");
+      toast.success("Payment created");
+      navigate("/user/payment", {
+        state: {
+          account: data.account,
+          payment: data.payment,
+        },
+      });
     } catch (error) {
       console.error(error);
       toast.error(
         error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        "Something went wrong"
+          error?.response?.data?.error ||
+          "Something went wrong"
       );
     } finally {
       setLoading(false);
@@ -140,12 +142,17 @@ const OpenAccount = () => {
   return (
     <div className="min-h-screen bg-white rounded-2xl shadow-sm p-4 sm:p-8">
       <div className="flex items-center gap-3 border-b pb-4">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-gray-100">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-lg hover:bg-gray-100"
+        >
           <ArrowLeft size={20} />
         </button>
         <div>
           <h1 className="text-2xl font-semibold">Set up your account</h1>
-          <p className="text-sm text-gray-500">Create demo instantly or pay for a live account.</p>
+          <p className="text-sm text-gray-500">
+            Create demo instantly or complete payment inside your app for a live account.
+          </p>
         </div>
       </div>
 
@@ -153,15 +160,17 @@ const OpenAccount = () => {
         <div className="grid grid-cols-2 gap-2 p-1 rounded-xl border bg-gray-50 w-full sm:w-[420px]">
           <button
             onClick={() => setAccountType("demo")}
-            className={`py-3 rounded-lg text-sm font-medium transition ${accountType === "demo" ? "bg-white shadow" : "text-gray-500"
-              }`}
+            className={`py-3 rounded-lg text-sm font-medium transition ${
+              accountType === "demo" ? "bg-white shadow" : "text-gray-500"
+            }`}
           >
             Demo
           </button>
           <button
             onClick={() => setAccountType("real")}
-            className={`py-3 rounded-lg text-sm font-medium transition ${accountType === "real" ? "bg-white shadow" : "text-gray-500"
-              }`}
+            className={`py-3 rounded-lg text-sm font-medium transition ${
+              accountType === "real" ? "bg-white shadow" : "text-gray-500"
+            }`}
           >
             Real
           </button>
@@ -172,7 +181,7 @@ const OpenAccount = () => {
           <div>
             {accountType === "demo"
               ? "Demo account is risk-free and will be created instantly."
-              : "Live account will be created in pending state and activated after OxaPay payment is confirmed."}
+              : "Live account will be created in pending state and activated after payment is confirmed."}
           </div>
         </div>
 
@@ -184,17 +193,20 @@ const OpenAccount = () => {
               <div className="space-y-3">
                 {section.data.map((item) => {
                   const active = selectedPlanId === item.id;
+
                   return (
                     <div
                       key={item.id}
                       onClick={() => setSelectedPlanId(item.id)}
-                      className={`grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-center border rounded-xl px-4 py-4 cursor-pointer transition ${active ? "border-blue-500 shadow-sm" : "hover:border-gray-300"
-                        }`}
+                      className={`grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-center border rounded-xl px-4 py-4 cursor-pointer transition ${
+                        active ? "border-blue-500 shadow-sm" : "hover:border-gray-300"
+                      }`}
                     >
                       <div className="flex gap-4 items-start">
                         <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center mt-1 ${active ? "border-blue-600" : "border-gray-400"
-                            }`}
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center mt-1 ${
+                            active ? "border-blue-600" : "border-gray-400"
+                          }`}
                         >
                           {active && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full" />}
                         </div>

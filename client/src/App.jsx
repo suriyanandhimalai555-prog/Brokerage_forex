@@ -49,6 +49,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 
 import TradingTerminal from "./pages/TradingTerminal";
+import PaymentCheckout from "./pages/PaymentCheckout";
 
 const App = () => {
   return (
@@ -140,13 +141,14 @@ const App = () => {
         <Route path="avg-terminal" element={<TradingTerminal />} />
       </Route>
       <Route
-  path="/terminal"
-  element={
-    <ProtectedRoute allowedRoles={["user"]}>
-      <TradingTerminal />
-    </ProtectedRoute>
-  }
-/>
+        path="/terminal"
+        element={
+          <ProtectedRoute allowedRoles={["user"]}>
+            <TradingTerminal />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/user/payment" element={<PaymentCheckout />} />
     </Routes>
   );
 };
