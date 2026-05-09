@@ -231,7 +231,7 @@ const TradingTerminal = () => {
 
       if (!token) return;
 
-      const res = await fetch("http://localhost:5000/api/auth/me", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -265,7 +265,7 @@ const TradingTerminal = () => {
 
       if (!token) return;
 
-      const res = await fetch("http://localhost:5000/api/accounts/me", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/accounts/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -286,7 +286,7 @@ const TradingTerminal = () => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `http://localhost:5000/api/accounts/active/${accountId}`,
+        `${import.meta.env.VITE_API_URL}/api/accounts/active/${accountId}`,
         {
           method: "PATCH",
           headers: {
@@ -315,7 +315,7 @@ const TradingTerminal = () => {
   const fetchLivePrice = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/market/price/${encodeURIComponent(currentSymbol)}`
+        `${import.meta.env.VITE_API_URL}/api/market/price/${encodeURIComponent(currentSymbol)}`
       );
       const data = await res.json();
 
@@ -334,7 +334,7 @@ const TradingTerminal = () => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const res = await fetch("http://localhost:5000/api/orders", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -525,7 +525,7 @@ const TradingTerminal = () => {
       setOrderLoading(true);
       const loadingToast = toast.loading(`${orderTypeLabel(normalizedType)} placing...`);
 
-      const res = await fetch("http://localhost:5000/api/orders", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -589,7 +589,7 @@ const TradingTerminal = () => {
 
       const loadingToast = toast.loading("Closing order...");
 
-      const res = await fetch(`http://localhost:5000/api/orders/${orderId}/close`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${orderId}/close`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
