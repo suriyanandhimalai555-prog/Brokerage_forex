@@ -21,7 +21,12 @@ const cookieOptions = {
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, partnerCode = null } = req.body;
+    const {
+  name,
+  email,
+  password,
+  partnerCode
+} = req.body;
 
     if ( !name || !email || !password) {
       return res.status(400).json({ message: "Name, email and password are required" });
@@ -42,7 +47,14 @@ export const registerUser = async (req, res) => {
       `INSERT INTO users (name, email, password, partner_code, role, balance)
        VALUES ($1, $2, $3, $4, 'user', 10000)
        RETURNING id, name, email, role, balance`,
-      [name,email, hashedPassword, partnerCode]
+      [
+  name,
+  email,
+  hashedPassword,
+  partnerCode && partnerCode.trim() !== ""
+    ? partnerCode.trim()
+    : null
+]
     );
 
     const user = result.rows[0];
