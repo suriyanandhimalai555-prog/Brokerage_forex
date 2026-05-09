@@ -111,7 +111,12 @@ const OpenAccount = () => {
 
       if (accountType === "demo") {
         toast.success("Demo account created");
-        navigate("/user/my-accounts");
+
+        setTimeout(() => {
+          navigate("/user/my-accounts");
+          window.location.reload();
+        }, 1000);
+
         return;
       }
 
@@ -131,8 +136,8 @@ const OpenAccount = () => {
       console.error(error);
       toast.error(
         error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          "Something went wrong"
+        error?.response?.data?.error ||
+        "Something went wrong"
       );
     } finally {
       setLoading(false);
@@ -160,17 +165,15 @@ const OpenAccount = () => {
         <div className="grid grid-cols-2 gap-2 p-1 rounded-xl border bg-gray-50 w-full sm:w-[420px]">
           <button
             onClick={() => setAccountType("demo")}
-            className={`py-3 rounded-lg text-sm font-medium transition ${
-              accountType === "demo" ? "bg-white shadow" : "text-gray-500"
-            }`}
+            className={`py-3 rounded-lg text-sm font-medium transition ${accountType === "demo" ? "bg-white shadow" : "text-gray-500"
+              }`}
           >
             Demo
           </button>
           <button
             onClick={() => setAccountType("real")}
-            className={`py-3 rounded-lg text-sm font-medium transition ${
-              accountType === "real" ? "bg-white shadow" : "text-gray-500"
-            }`}
+            className={`py-3 rounded-lg text-sm font-medium transition ${accountType === "real" ? "bg-white shadow" : "text-gray-500"
+              }`}
           >
             Real
           </button>
@@ -198,15 +201,13 @@ const OpenAccount = () => {
                     <div
                       key={item.id}
                       onClick={() => setSelectedPlanId(item.id)}
-                      className={`grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-center border rounded-xl px-4 py-4 cursor-pointer transition ${
-                        active ? "border-blue-500 shadow-sm" : "hover:border-gray-300"
-                      }`}
+                      className={`grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-center border rounded-xl px-4 py-4 cursor-pointer transition ${active ? "border-blue-500 shadow-sm" : "hover:border-gray-300"
+                        }`}
                     >
                       <div className="flex gap-4 items-start">
                         <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center mt-1 ${
-                            active ? "border-blue-600" : "border-gray-400"
-                          }`}
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center mt-1 ${active ? "border-blue-600" : "border-gray-400"
+                            }`}
                         >
                           {active && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full" />}
                         </div>
