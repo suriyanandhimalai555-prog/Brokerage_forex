@@ -2,6 +2,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import toast from "react-hot-toast";
 
 const UserProfile = () => {
   const [loading, setLoading] =
@@ -68,11 +69,11 @@ const UserProfile = () => {
       setForm(profileData);
 
       if (
-  !user.phone_number ||
-  !user.address
-) {
-  setOpenEdit(true);
-}
+        !user.phone_number ||
+        !user.address
+      ) {
+        setOpenEdit(true);
+      }
 
     } catch (err) {
 
@@ -98,7 +99,7 @@ const UserProfile = () => {
         !form.phone_number ||
         !form.address
       ) {
-        alert(
+        toast.error(
           "Please fill all fields"
         );
 
@@ -137,9 +138,9 @@ const UserProfile = () => {
 
       if (!res.ok) {
 
-        alert(
+        toast.error(
           data.message ||
-            "Failed to update profile"
+          "Failed to update profile"
         );
 
         return;
@@ -149,7 +150,9 @@ const UserProfile = () => {
 
       setOpenEdit(false);
 
-      alert("Profile updated");
+      toast.success(
+        "Profile updated successfully"
+      );
 
     } catch (err) {
 
