@@ -114,8 +114,18 @@ export const loginUser = async (req, res) => {
       token,
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
+
+  console.error(
+    "LOGIN ERROR:",
+    error
+  );
+
+  return res.status(500).json({
+    success: false,
+    message: error.message,
+    stack: error.stack,
+  });
+}
 };
 
 export const me = async (req, res) => {
