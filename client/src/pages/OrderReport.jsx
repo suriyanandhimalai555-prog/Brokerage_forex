@@ -1,108 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-const dummyOrders = [
-  {
-    sno: 1,
-    uid: 142,
-    time: "2025-10-09 14:34:10",
-    symbol: "XAUUSD",
-    lot: 0.5,
-    bs: "BUY",
-    sl: 0,
-    target: 0,
-    status: "CLOSED",
-    avg: 4007.13,
-    exit: 4011.4,
-    pnl: 213.5,
-    sector: "metal",
-    pair: "xxx",
-    type: "market",
-    trigger: 0,
-    margin: 2003.57,
-    reason: "transit",
-    phase: "Phase 1",
-    closingTime: "2025-10-09 14:38:15",
-    swap: 0,
-    spreadCommn: 0,
-    customerName: "Xtreme Demo",
-  },
-  {
-    sno: 2,
-    uid: 120,
-    time: "2025-10-10 10:10:10",
-    symbol: "BTCUSD",
-    lot: 0.2,
-    bs: "SELL",
-    sl: 0,
-    target: 0,
-    status: "OPEN",
-    avg: 60000,
-    exit: "-",
-    pnl: -50,
-    sector: "crypto",
-    pair: "btc",
-    type: "market",
-    trigger: 0,
-    margin: 500,
-    reason: "manual",
-    phase: "Phase 2",
-    closingTime: "-",
-    swap: 0,
-    spreadCommn: 0,
-    customerName: "Jinson Joseph",
-  },
-  {
-    sno: 3,
-    uid: 98,
-    time: "2025-10-11 09:22:44",
-    symbol: "US30",
-    lot: 1,
-    bs: "BUY",
-    sl: 0,
-    target: 0,
-    status: "CLOSED",
-    avg: 35210.22,
-    exit: 35280.11,
-    pnl: 69.89,
-    sector: "index",
-    pair: "us30",
-    type: "market",
-    trigger: 0,
-    margin: 1200.22,
-    reason: "transit",
-    phase: "Phase 1",
-    closingTime: "2025-10-11 09:30:18",
-    swap: 0,
-    spreadCommn: 0,
-    customerName: "Shivani",
-  },
-  {
-    sno: 4,
-    uid: 77,
-    time: "2025-10-12 13:14:55",
-    symbol: "EURUSD",
-    lot: 0.3,
-    bs: "SELL",
-    sl: 1.092,
-    target: 1.087,
-    status: "CLOSED",
-    avg: 1.0912,
-    exit: 1.0879,
-    pnl: 32.7,
-    sector: "forex",
-    pair: "eurusd",
-    type: "market",
-    trigger: 0,
-    margin: 320.5,
-    reason: "manual",
-    phase: "Phase 3",
-    closingTime: "2025-10-12 13:48:01",
-    swap: 0,
-    spreadCommn: 0.12,
-    customerName: "Demo User",
-  },
-];
-
 const formatAmount = (value) => {
   if (value === null || value === undefined || value === "") return "-";
   if (value === "-") return "-";
@@ -118,7 +15,10 @@ const formatAmount = (value) => {
 
 const formatDateOnly = (value) => {
   if (!value) return "";
-  return String(value).slice(0, 10);
+  const str = String(value);
+
+  if (str.includes("T")) return str.slice(0, 10);
+  return str.slice(0, 10);
 };
 
 const badgeClass = (value) => {
@@ -132,32 +32,98 @@ const badgeClass = (value) => {
 
 const Field = ({ label, value }) => (
   <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-    <div className="text-[11px] uppercase tracking-wide text-gray-500">
-      {label}
-    </div>
-    <div className="mt-1 text-sm font-medium text-gray-900 break-words">
-      {value}
-    </div>
+    <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
+    <div className="mt-1 text-sm font-medium text-gray-900 break-words">{value}</div>
   </div>
 );
 
+const normalizeOrder = (item, index) => ({
+  sno: item.id ?? item.sno ?? index + 1,
+  uid: item.user_id ?? item.uid ?? "",
+  time: item.created_at ?? item.time ?? "",
+  symbol: item.symbol ?? "-",
+  lot: item.lot_size ?? item.lot ?? 0,
+  bs: item.side ?? item.bs ?? "",
+  sl: item.sl ?? 0,
+  target: item.target ?? 0,
+  status: item.status ?? "-",
+  avg: item.open_price ?? item.avg ?? 0,
+  exit: item.close_price ?? item.exit ?? "-",
+  pnl: item.profit ?? item.pnl ?? 0,
+  sector: item.sector ?? "-",
+  pair: item.pair ?? "-",
+  type: item.type ?? "-",
+  trigger: item.trigger_price ?? item.trigger ?? 0,
+  margin: item.margin ?? 0,
+  reason: item.reason ?? "-",
+  phase: item.phase ?? "-",
+  closingTime: item.close_time ?? item.closingTime ?? "-",
+  swap: item.swap ?? 0,
+  spreadCommn: item.spreadCommn ?? item.spread_commn ?? 0,
+  customerName: item.customer_name ?? item.customerName ?? "Unknown",
+  accountNo: item.account_no ?? item.accountNo ?? "-",
+  accountType: item.account_type ?? item.accountType ?? "-",
+});
+
 const OrderReport = () => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
-  const [fromDate, setFromDate] = useState("2025-10-09");
-  const [toDate, setToDate] = useState("2025-10-12");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedUser, setSelectedUser] = useState("-- Select Individual --");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
-  const userOptions = useMemo(() => {
-    const users = Array.from(new Set(dummyOrders.map((item) => item.customerName)));
-    return ["-- Select Individual --", ...users];
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/orders/admin/all`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.log(data);
+        return;
+      }
+
+      const rows = Array.isArray(data.orders) ? data.orders : [];
+      setOrders(rows.map(normalizeOrder));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
   }, []);
+
+  const userOptions = useMemo(() => {
+    const users = Array.from(
+      new Set(
+        orders.map((item) => item.customerName).filter(Boolean)
+      )
+    );
+    return ["-- Select Individual --", ...users];
+  }, [orders]);
 
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return dummyOrders.filter((item) => {
+    return orders.filter((item) => {
       const matchesSearch =
         !q ||
         Object.values(item)
@@ -165,15 +131,16 @@ const OrderReport = () => {
           .toLowerCase()
           .includes(q);
 
-      const itemDate = formatDateOnly(item.time);
+      const itemDate = formatDateOnly(item.time || item.closingTime);
       const matchesFrom = !fromDate || itemDate >= fromDate;
       const matchesTo = !toDate || itemDate <= toDate;
       const matchesUser =
-        selectedUser === "-- Select Individual --" || item.customerName === selectedUser;
+        selectedUser === "-- Select Individual --" ||
+        item.customerName === selectedUser;
 
       return matchesSearch && matchesFrom && matchesTo && matchesUser;
     });
-  }, [search, fromDate, toDate, selectedUser]);
+  }, [orders, search, fromDate, toDate, selectedUser]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
 
@@ -182,7 +149,8 @@ const OrderReport = () => {
     return filteredOrders.slice(start, start + pageSize);
   }, [filteredOrders, page, pageSize]);
 
-  const startEntry = filteredOrders.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  const startEntry =
+    filteredOrders.length === 0 ? 0 : (page - 1) * pageSize + 1;
   const endEntry = Math.min(page * pageSize, filteredOrders.length);
 
   useEffect(() => {
@@ -195,11 +163,12 @@ const OrderReport = () => {
 
   const handleRefresh = () => {
     setSearch("");
-    setFromDate("2025-10-09");
-    setToDate("2025-10-12");
+    setFromDate("");
+    setToDate("");
     setSelectedUser("-- Select Individual --");
     setPageSize(10);
     setPage(1);
+    fetchOrders();
   };
 
   return (
@@ -324,9 +293,7 @@ const OrderReport = () => {
               </div>
             </div>
 
-
             <div className="hidden lg:block rounded-xl border border-gray-200 overflow-hidden">
-              {/* ✅ SCROLL ONLY HERE */}
               <div className="w-full overflow-x-auto">
                 <table className="min-w-[1400px] w-full text-[12px]">
                   <thead className="bg-[#353b8f] text-white">
@@ -357,7 +324,13 @@ const OrderReport = () => {
                   </thead>
 
                   <tbody>
-                    {pagedOrders.length > 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={22} className="px-4 py-10 text-center text-sm text-gray-500">
+                          Loading...
+                        </td>
+                      </tr>
+                    ) : pagedOrders.length > 0 ? (
                       pagedOrders.map((row) => (
                         <tr key={row.sno} className="border-b hover:bg-gray-50">
                           <td className="px-3 py-2 whitespace-nowrap">{row.sno}</td>
@@ -381,13 +354,8 @@ const OrderReport = () => {
                             </span>
                           </td>
 
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {formatAmount(row.avg)}
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {formatAmount(row.exit)}
-                          </td>
-
+                          <td className="px-3 py-2 whitespace-nowrap">{formatAmount(row.avg)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatAmount(row.exit)}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-blue-600 font-semibold">
                             {formatAmount(row.pnl)}
                           </td>
@@ -396,19 +364,12 @@ const OrderReport = () => {
                           <td className="px-3 py-2 whitespace-nowrap">{row.pair}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{row.type}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{row.trigger}</td>
-
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {formatAmount(row.margin)}
-                          </td>
-
+                          <td className="px-3 py-2 whitespace-nowrap">{formatAmount(row.margin)}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{row.reason}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{row.phase}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{row.closingTime}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{row.swap}</td>
-
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {formatAmount(row.spreadCommn)}
-                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatAmount(row.spreadCommn)}</td>
                         </tr>
                       ))
                     ) : (
@@ -424,7 +385,9 @@ const OrderReport = () => {
             </div>
 
             <div className="2xl:hidden space-y-3">
-              {pagedOrders.length > 0 ? (
+              {loading ? (
+                <div className="text-center text-sm text-gray-500 py-8">Loading...</div>
+              ) : pagedOrders.length > 0 ? (
                 pagedOrders.map((row) => (
                   <div key={row.sno} className="border rounded-xl p-3 shadow-sm bg-white">
                     <div className="flex items-start justify-between gap-3">
@@ -477,7 +440,9 @@ const OrderReport = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-600">
-              <p>Showing {startEntry} to {endEntry} of {filteredOrders.length} entries</p>
+              <p>
+                Showing {startEntry} to {endEntry} of {filteredOrders.length} entries
+              </p>
 
               <div className="inline-flex items-center rounded-lg overflow-hidden border border-gray-300 self-start sm:self-auto">
                 <button

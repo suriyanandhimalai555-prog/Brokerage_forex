@@ -9,16 +9,14 @@ import authRoutes from "./routes/authRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import marketRoutes from "./routes/marketRoutes.js";
 import accountRoutes from "./routes/accountRoutes.js";
+import depositRoutes from "./routes/depositRoutes.js";
+import withdrawRoutes from "./routes/withdrawRoutes.js";
+import transferRoutes from "./routes/transferRoutes.js";
 
 import { oxaPayWebhook } from "./controllers/accountController.js";
 
 const app = express();
 
-/*
-|--------------------------------------------------------------------------
-| CORS
-|--------------------------------------------------------------------------
-*/
 app.use(
   cors({
     origin: process.env.CLIENT_URL,
@@ -26,12 +24,6 @@ app.use(
   })
 );
 
-/*
-|--------------------------------------------------------------------------
-| BODY PARSER
-|--------------------------------------------------------------------------
-| rawBody needed for OxaPay webhook HMAC verification
-*/
 app.use(
   express.json({
     verify: (req, res, buf) => {
@@ -42,12 +34,6 @@ app.use(
 
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
-/*
-|--------------------------------------------------------------------------
-| ROUTES
-|--------------------------------------------------------------------------
-*/
 
 app.get("/", (req, res) => {
   res.send("API Running...");
@@ -64,6 +50,15 @@ app.use("/api/orders", orderRoutes);
 
 /* ACCOUNTS */
 app.use("/api/accounts", accountRoutes);
+
+// DEPOSITS
+app.use("/api/deposits", depositRoutes);
+
+// WITHDRAWALS
+app.use("/api/withdrawals", withdrawRoutes);
+
+// TRANSFER
+app.use("/api/transfers", transferRoutes);
 
 /*
 |--------------------------------------------------------------------------

@@ -542,3 +542,150 @@ export const closeOrder = async (req, res) => {
     client.release();
   }
 };
+
+// Admin all orders
+export const getAllOrdersAdmin = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        o.id,
+        o.user_id,
+        o.trading_account_id,
+        o.symbol,
+        o.type,
+        o.side,
+        o.status,
+        o.lot_size,
+        o.units,
+        o.margin,
+        o.leverage,
+        o.open_price,
+        o.close_price,
+        o.trigger_price,
+        o.profit,
+        o.created_at,
+        o.close_time,
+
+        u.name AS customer_name,
+        u.email,
+
+        ta.account_no,
+        ta.account_type,
+        ta.balance,
+        ta.currency,
+        ta.platform
+
+      FROM orders o
+
+      LEFT JOIN users u
+      ON u.id = o.user_id
+
+      LEFT JOIN trading_accounts ta
+      ON ta.id = o.trading_account_id
+
+      ORDER BY o.id DESC
+      `
+    );
+
+    return res.json({
+      success: true,
+      orders: result.rows,
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch all orders",
+    });
+  }
+};
+
+// Admin open order
+export const getOpenOrdersAdmin = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        o.*,
+        u.name AS customer_name,
+        u.email,
+        ta.account_no,
+        ta.account_type,
+        ta.balance,
+        ta.currency,
+        ta.platform
+
+      FROM orders o
+
+      LEFT JOIN users u
+      ON u.id = o.user_id
+
+      LEFT JOIN trading_accounts ta
+      ON ta.id = o.trading_account_id
+
+      WHERE LOWER(o.status) = 'open'
+
+      ORDER BY o.id DESC
+      `
+    );
+
+    return res.json({
+      success: true,
+      orders: result.rows,
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch open orders",
+    });
+  }
+};
+
+// Admin closed order
+export const getClosedOrdersAdmin = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        o.*,
+        u.name AS customer_name,
+        u.email,
+        ta.account_no,
+        ta.account_type,
+        ta.balance,
+        ta.currency,
+        ta.platform
+
+      FROM orders o
+
+      LEFT JOIN users u
+      ON u.id = o.user_id
+
+      LEFT JOIN trading_accounts ta
+      ON ta.id = o.trading_account_id
+
+      WHERE LOWER(o.status) = 'closed'
+
+      ORDER BY o.id DESC
+      `
+    );
+
+    return res.json({
+      success: true,
+      orders: result.rows,
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch closed orders",
+    });
+  }
+};

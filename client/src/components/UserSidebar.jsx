@@ -59,11 +59,11 @@ const menu = [
                 icon: History,
                 path: "/user/transaction-history",
             },
-            {
-                name: "Crypto Wallet",
-                icon: Wallet,
-                path: "/user/crypto-wallet",
-            },
+            // {
+            //     name: "Crypto Wallet",
+            //     icon: Wallet,
+            //     path: "/user/crypto-wallet",
+            // },
         ],
     },
     {

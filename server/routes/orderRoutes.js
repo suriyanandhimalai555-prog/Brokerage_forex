@@ -3,6 +3,9 @@ import {
   placeOrder,
   getOrders,
   closeOrder,
+  getAllOrdersAdmin,
+  getOpenOrdersAdmin,
+  getClosedOrdersAdmin,
 } from "../controllers/orderController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 
@@ -10,6 +13,9 @@ const router = express.Router();
 
 router.post("/", protect, placeOrder);
 router.get("/", protect, getOrders);
+router.get("/admin/all", protect, getAllOrdersAdmin);
+router.get("/admin/open", protect, getOpenOrdersAdmin);
+router.get("/admin/closed",  protect, getClosedOrdersAdmin);
 router.patch("/:id/close", protect, closeOrder);
 
 export default router;

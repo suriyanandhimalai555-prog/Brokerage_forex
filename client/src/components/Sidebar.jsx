@@ -36,7 +36,7 @@ const menu = [
           { name: "Closed", icon: Circle, path: "/admin/orders/closed" },
         ],
       },
-      { name: "Funded AC", icon: File, path: "/admin/orders/funded" },
+      // { name: "Funded AC", icon: File, path: "/admin/orders/funded" },
       {
         name: "Report",
         icon: Folder,
@@ -55,7 +55,7 @@ const menu = [
         icon: Folder,
         children: [
           { name: "Funded", icon: Circle, path: "/admin/users/funded" },
-          { name: "Challenge", icon: Circle, path: "/admin/users/challenge" },
+          // { name: "Challenge", icon: Circle, path: "/admin/users/challenge" },
         ],
       },
       { name: "User Documents", icon: File, path: "/admin/users/docs" },
@@ -66,8 +66,8 @@ const menu = [
     name: "Reports & Logs",
     icon: FileText,
     children: [
-      { name: "User Order Report", icon: Circle, path: "/admin/reports/user-order" },
-      { name: "Order Edit Log", icon: Circle, path: "/admin/reports/edit-log" },
+      // { name: "User Order Report", icon: Circle, path: "/admin/reports/user-order" },
+      // { name: "Order Edit Log", icon: Circle, path: "/admin/reports/edit-log" },
       { name: "User Transaction Log", icon: Circle, path: "/admin/reports/transactions" },
     ],
   },

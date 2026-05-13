@@ -76,6 +76,8 @@ const Login = () => {
           "Login successful 🚀"
         );
 
+        // window.location.reload(2000);
+
         if (
           data.user.role === "admin"
         ) {

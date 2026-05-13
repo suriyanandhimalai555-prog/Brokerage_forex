@@ -22,13 +22,13 @@ const cookieOptions = {
 export const registerUser = async (req, res) => {
   try {
     const {
-  name,
-  email,
-  password,
-  partnerCode
-} = req.body;
+      name,
+      email,
+      password,
+      partnerCode
+    } = req.body;
 
-    if ( !name || !email || !password) {
+    if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email and password are required" });
     }
 
@@ -48,13 +48,13 @@ export const registerUser = async (req, res) => {
        VALUES ($1, $2, $3, $4, 'user', 10000)
        RETURNING id, name, email, role, balance`,
       [
-  name,
-  email,
-  hashedPassword,
-  partnerCode && partnerCode.trim() !== ""
-    ? partnerCode.trim()
-    : null
-]
+        name,
+        email,
+        hashedPassword,
+        partnerCode && partnerCode.trim() !== ""
+          ? partnerCode.trim()
+          : null
+      ]
     );
 
     const user = result.rows[0];
@@ -153,21 +153,23 @@ export const me = async (req, res) => {
         id: req.user.id,
         name: req.user.name,
         email: req.user.email,
+        phone_number: req.user.phone_number,
+        address: req.user.address,
         role: req.user.role,
 
         active_account_id: req.user.active_account_id,
 
         trading_account: req.user.trading_account_id
           ? {
-              id: req.user.trading_account_id,
-              account_no: req.user.account_no,
-              balance: Number(req.user.balance || 0),
-              account_type: req.user.account_type,
-              platform: req.user.platform,
-              currency: req.user.currency,
-              leverage: req.user.leverage,
-              status: req.user.status,
-            }
+            id: req.user.trading_account_id,
+            account_no: req.user.account_no,
+            balance: Number(req.user.balance || 0),
+            account_type: req.user.account_type,
+            platform: req.user.platform,
+            currency: req.user.currency,
+            leverage: req.user.leverage,
+            status: req.user.status,
+          }
           : null,
 
         balance: Number(req.user.balance || 0),
@@ -196,4 +198,117 @@ export const logoutUser = async (req, res) => {
   });
 
   return res.json({ message: "Logged out successfully" });
+};
+
+export const getAllUsers = async (
+  req,
+  res
+) => {
+  try {
+
+    const result = await pool.query(`
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.role,
+        u.created_at,
+
+        ta.id AS trading_account_id,
+        ta.account_no,
+        ta.account_type,
+        ta.platform,
+        ta.currency,
+        ta.status AS trading_status,
+
+        ta.balance,
+        ta.initial_balance,
+
+        ta.plan_name,
+        ta.nickname,
+        ta.leverage
+
+      FROM users u
+
+      LEFT JOIN trading_accounts ta
+      ON ta.user_id::integer = u.id
+
+      ORDER BY u.id DESC
+    `);
+
+    return res.json({
+      success: true,
+      users: result.rows,
+    });
+
+  } catch (err) {
+
+    console.error(
+      "GET ALL USERS ERROR:",
+      err
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+export const updateProfile = async (
+  req,
+  res
+) => {
+  try {
+
+    const {
+      name,
+      email,
+      phone_number,
+      address,
+    } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE users
+
+      SET
+        name = $1,
+        email = $2,
+        phone_number = $3,
+        address = $4
+
+      WHERE id = $5
+
+      RETURNING
+        id,
+        name,
+        email,
+        phone_number,
+        address
+      `,
+      [
+        name,
+        email,
+        phone_number,
+        address,
+        req.user.id,
+      ]
+    );
+
+    return res.json({
+      success: true,
+      user: result.rows[0],
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to update profile",
+    });
+  }
 };
