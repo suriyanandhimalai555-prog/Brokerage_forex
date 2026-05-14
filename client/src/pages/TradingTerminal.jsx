@@ -1271,7 +1271,7 @@ const TradingTerminal = () => {
               <div
                 ref={chartWrapperRef}
                 className={`relative overflow-hidden rounded-3xl border ${isDark ? "bg-black border-slate-800" : "bg-white border-slate-200"
-                  } h-[420px] sm:h-[520px] lg:h-[68vh] min-h-[380px] lg:min-h-[560px]`}
+                  } h-[580px] sm:h-[520px] lg:h-[68vh] min-h-[380px] lg:min-h-[560px]`}
               >
                 {loading && (
                   <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 text-sm font-semibold text-white">
