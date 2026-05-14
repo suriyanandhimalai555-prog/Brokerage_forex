@@ -14,11 +14,15 @@ import {
   XCircle,
   ArrowUpRight,
   ArrowDownRight,
-  BarChart3,
   Layers3,
-  SlidersHorizontal,
   Signal,
   BadgeDollarSign,
+  Menu,
+  X,
+  LayoutGrid,
+  ListFilter,
+  BriefcaseBusiness,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import Logo from "../assets/logo.png";
@@ -170,6 +174,7 @@ const TradingTerminal = () => {
   const [orderLoading, setOrderLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [livePrice, setLivePrice] = useState(0);
   const [balance, setBalance] = useState(0);
@@ -179,6 +184,8 @@ const TradingTerminal = () => {
   const [refreshingOrders, setRefreshingOrders] = useState(false);
   const [triggerPrice, setTriggerPrice] = useState("");
   const [lotSize, setLotSize] = useState("0.01");
+  const [activePanel, setActivePanel] = useState("market"); // market | account | ticket | orders
+  const [ordersTab, setOrdersTab] = useState("open"); // open | pending | closed
 
   const currentSymbol = selectedMarket.tvSymbol;
   const isDark = theme === "dark";
@@ -191,7 +198,7 @@ const TradingTerminal = () => {
     if (livePrice > 0) {
       setTriggerPrice(String(livePrice));
     }
-  }, [currentSymbol]);
+  }, [currentSymbol, livePrice]);
 
   const destroyWidget = () => {
     try {
@@ -314,32 +321,28 @@ const TradingTerminal = () => {
   };
 
   const fetchLivePrice = async () => {
-  try {
-    const encodedSymbol = btoa(currentSymbol);
+    try {
+      const encodedSymbol = btoa(currentSymbol);
 
-    const res = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/market/price/${encodedSymbol}`
-    );
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/market/price/${encodedSymbol}`);
 
-    const data = await res.json();
+      const data = await res.json();
 
-    console.log("LIVE PRICE RESPONSE:", data);
-
-    if (
-      res.ok &&
-      data?.price !== undefined &&
-      data?.price !== null &&
-      !Number.isNaN(Number(data.price))
-    ) {
-      setLivePrice(Number(data.price));
-    } else {
+      if (
+        res.ok &&
+        data?.price !== undefined &&
+        data?.price !== null &&
+        !Number.isNaN(Number(data.price))
+      ) {
+        setLivePrice(Number(data.price));
+      } else {
+        setLivePrice(0);
+      }
+    } catch (err) {
+      console.error("LIVE PRICE ERROR:", err);
       setLivePrice(0);
     }
-  } catch (err) {
-    console.error("LIVE PRICE ERROR:", err);
-    setLivePrice(0);
-  }
-};
+  };
 
   const fetchOrders = async () => {
     try {
@@ -671,7 +674,7 @@ const TradingTerminal = () => {
   const actionButtonBase =
     "rounded-2xl py-3 font-semibold tracking-wide transition disabled:opacity-60 disabled:cursor-not-allowed";
 
-  const OrdersMobileCard = ({ order, type }) => {
+  const OrdersCard = ({ order, type }) => {
     const isOpen = type === "open";
     const isPending = type === "pending";
     const isClosed = type === "closed";
@@ -729,12 +732,16 @@ const TradingTerminal = () => {
 
           <div>
             <div className={mutedText}>{isPending ? "Trigger" : "Open"}</div>
-            <div className="font-medium">{isPending ? formatPrice(order.trigger_price) : formatPrice(order.open_price)}</div>
+            <div className="font-medium">
+              {isPending ? formatPrice(order.trigger_price) : formatPrice(order.open_price)}
+            </div>
           </div>
 
           <div>
             <div className={mutedText}>{isClosed ? "Close" : "Live"}</div>
-            <div className="font-medium">{isClosed ? formatPrice(order.close_price) : livePrice ? livePrice.toFixed(4) : "-"}</div>
+            <div className="font-medium">
+              {isClosed ? formatPrice(order.close_price) : livePrice ? livePrice.toFixed(4) : "-"}
+            </div>
           </div>
 
           <div>
@@ -766,110 +773,12 @@ const TradingTerminal = () => {
     );
   };
 
-  const OrdersDesktopTable = ({ title, items, type }) => {
-    const isOpen = type === "open";
-    const isPending = type === "pending";
-    const isClosed = type === "closed";
-
-    return (
-      <div className={`rounded-3xl border ${panelClass} overflow-hidden`}>
-        <div className="flex items-center justify-between border-b border-slate-800/70 px-5 py-4">
-          <h3 className="font-semibold">{title}</h3>
-          <span className={`text-sm ${mutedText}`}>{items.length}</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-[980px] w-full text-sm">
-            <thead className={isDark ? "bg-slate-950 text-slate-300" : "bg-slate-50 text-slate-600"}>
-              <tr className="text-left">
-                <th className="px-4 py-3 font-semibold">Symbol</th>
-                <th className="px-4 py-3 font-semibold">Type</th>
-                <th className="px-4 py-3 font-semibold">Lots</th>
-                <th className="px-4 py-3 font-semibold">Units</th>
-                <th className="px-4 py-3 font-semibold">{isPending ? "Trigger" : "Open"}</th>
-                <th className="px-4 py-3 font-semibold">{isClosed ? "Close" : "Live"}</th>
-                <th className="px-4 py-3 font-semibold">Margin</th>
-                <th className="px-4 py-3 font-semibold">Leverage</th>
-                <th className="px-4 py-3 font-semibold">PnL</th>
-                <th className="px-4 py-3 font-semibold text-center">{isOpen ? "Action" : isPending ? "Status" : "Result"}</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan="10" className="px-4 py-8 text-center text-slate-500">
-                    No {title.toLowerCase()}.
-                  </td>
-                </tr>
-              ) : (
-                items.map((order) => {
-                  const entry = Number(order.open_price || 0);
-                  const units = Number(order.units || 0);
-                  const side = String(order.type || "").toLowerCase();
-
-                  const pnl = isOpen
-                    ? livePrice
-                      ? side.startsWith("buy")
-                        ? (livePrice - entry) * units
-                        : (entry - livePrice) * units
-                      : 0
-                    : Number(order.profit || 0);
-
-                  return (
-                    <tr
-                      key={order.id}
-                      className={`border-t ${isDark ? "border-slate-800 hover:bg-slate-950/50" : "border-slate-100 hover:bg-slate-50"} transition`}
-                    >
-                      <td className="px-4 py-4 font-semibold">{order.display_symbol || cleanSymbol(order.symbol)}</td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${isOpen
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : isPending
-                              ? "bg-amber-500/10 text-amber-400"
-                              : "bg-slate-500/10 text-slate-400"
-                            }`}
-                        >
-                          {orderTypeLabel(order.type)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">{Number(order.lot_size || 0).toFixed(2)}</td>
-                      <td className="px-4 py-4">{Number(order.units || 0).toFixed(2)}</td>
-                      <td className="px-4 py-4">{isPending ? formatPrice(order.trigger_price) : formatPrice(order.open_price)}</td>
-                      <td className="px-4 py-4">{isClosed ? formatPrice(order.close_price) : livePrice ? livePrice.toFixed(4) : "-"}</td>
-                      <td className="px-4 py-4">{Number(order.margin || 0).toFixed(2)}</td>
-                      <td className="px-4 py-4">1:{Number(order.leverage || 100)}</td>
-                      <td className={`px-4 py-4 font-semibold ${pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {formatPnL(pnl)}
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        {isOpen ? (
-                          <button
-                            onClick={() => closeOrder(order.id)}
-                            disabled={!canTrade}
-                            className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
-                          >
-                            Close
-                          </button>
-                        ) : isPending ? (
-                          <span className="text-xs font-semibold text-amber-400">Waiting</span>
-                        ) : (
-                          <span className={pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                            {pnl >= 0 ? "Profit" : "Loss"}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
+  const rightTabs = [
+    { key: "market", label: "Watchlist", icon: ListFilter },
+    { key: "account", label: "Account", icon: BriefcaseBusiness },
+    { key: "ticket", label: "Orders", icon: Layers3 },
+    { key: "orders", label: "Holdings", icon: ClipboardList },
+  ];
 
   const quickActions = [
     { label: "Buy", key: "buy", icon: ArrowUpRight, className: "bg-emerald-500 hover:bg-emerald-400 text-slate-950" },
@@ -887,53 +796,282 @@ const TradingTerminal = () => {
     { label: "Margin Used", value: marginUsed.toFixed(2), icon: BadgeDollarSign, positive: true },
   ];
 
+  const activeOrders = ordersTab === "open" ? openOrders : ordersTab === "pending" ? pendingOrders : closedOrders;
+
+  const renderRightPanel = () => {
+    if (activePanel === "market") {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold">Market Watch</h3>
+              <p className={`text-xs ${mutedText}`}>Pick a symbol and chart updates instantly</p>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-slate-950 text-slate-300" : "bg-slate-100 text-slate-600"
+                }`}
+            >
+              {filteredSections.reduce((sum, sec) => sum + sec.items.length, 0)}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {filteredSections.map((section) => (
+              <div
+                key={section.title}
+                className={`rounded-3xl border p-3 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+                  }`}
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-semibold">{section.title}</h4>
+                    <p className={`text-xs ${mutedText}`}>
+                      {section.marketType.toUpperCase()} • Spread {section.spread}
+                    </p>
+                  </div>
+                  <span className={`text-xs ${mutedText}`}>{section.items.length}</span>
+                </div>
+
+                <div className="space-y-2">
+                  {section.items.map((item) => {
+                    const active = item.tvSymbol === currentSymbol;
+                    return (
+                      <button
+                        key={item.tvSymbol}
+                        onClick={() => {
+                          setSelectedMarket(item);
+                          setActivePanel("market");
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={`w-full rounded-2xl border px-3 py-3 text-left transition ${active ? sectionButtonActive : sectionButtonInactive}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <div className="font-medium">{item.label}</div>
+                            <div
+                              className={`text-xs ${active ? (isDark ? "text-emerald-200" : "text-emerald-700") : mutedText
+                                }`}
+                            >
+                              {item.tvSymbol}
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className={active ? "text-emerald-400" : "text-slate-500"} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (activePanel === "account") {
+      return (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-base font-semibold">Account</h3>
+            <p className={`text-xs ${mutedText}`}>Active account and account switching</p>
+          </div>
+
+          <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
+            <div className="space-y-3">
+              <div>
+                <div className={`text-sm ${mutedText}`}>Active Trading Account</div>
+                {activeAccount ? (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-lg font-semibold">#{activeAccount.account_no}</div>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${activeAccount.account_type === "demo"
+                            ? "bg-amber-500/10 text-amber-400"
+                            : "bg-emerald-500/10 text-emerald-400"
+                          }`}
+                      >
+                        {String(activeAccount.account_type).toUpperCase()}
+                      </span>
+                      <span className="rounded-full bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-400">
+                        {activeAccount.platform}
+                      </span>
+                    </div>
+                    <div className={`text-sm ${mutedText}`}>
+                      Balance: {Number(activeAccount.balance || 0).toFixed(2)} {activeAccount.currency}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm text-rose-400">No active account selected</div>
+                )}
+              </div>
+
+              <div className="grid gap-2">
+                {accounts.map((acc) => {
+                  const active = activeAccount?.id === acc.id;
+                  return (
+                    <button
+                      key={acc.id}
+                      onClick={() => switchAccount(acc.id)}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${active
+                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                          : isDark
+                            ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                            : "border-slate-200 bg-white hover:bg-slate-50"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{acc.account_type === "demo" ? "Demo" : "Real"}</span>
+                        <span>{Number(acc.balance || 0).toFixed(2)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activePanel === "ticket") {
+      return (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-base font-semibold">Order Ticket</h3>
+            <p className={`text-xs ${mutedText}`}>Place buy, sell, and pending orders</p>
+          </div>
+
+          <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className={`mb-2 block text-xs font-medium uppercase tracking-wide ${mutedText}`}>Lot Size</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={lotSize}
+                  onChange={(e) => setLotSize(e.target.value)}
+                  className={`w-full rounded-2xl border px-4 py-3 outline-none ${softInput}`}
+                />
+              </div>
+
+              <div>
+                <label className={`mb-2 block text-xs font-medium uppercase tracking-wide ${mutedText}`}>Trigger Price</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  value={triggerPrice}
+                  onChange={(e) => setTriggerPrice(e.target.value)}
+                  placeholder={livePrice ? String(livePrice) : "Enter trigger"}
+                  className={`w-full rounded-2xl border px-4 py-3 outline-none ${softInput}`}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {quickActions.map(({ label, key, icon: Icon, className }) => (
+                <button
+                  key={key}
+                  onClick={() => placeOrder(key)}
+                  disabled={orderLoading || !canTrade}
+                  className={`${actionButtonBase} inline-flex items-center justify-center gap-2 ${className}`}
+                >
+                  <Icon size={16} />
+                  {orderLoading ? "Working..." : label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-base font-semibold">Orders</h3>
+          <p className={`text-xs ${mutedText}`}>Switch between open, pending, and closed</p>
+        </div>
+
+        <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ["open", `Open ${openOrders.length}`],
+              ["pending", `Pending ${pendingOrders.length}`],
+              ["closed", `Closed ${closedOrders.length}`],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setOrdersTab(key)}
+                className={`rounded-2xl px-3 py-2 text-xs font-semibold transition ${ordersTab === key
+                    ? "bg-emerald-500 text-slate-950"
+                    : isDark
+                      ? "bg-slate-950 text-slate-300"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
+            {activeOrders.length === 0 ? (
+              <p className={`text-sm ${mutedText}`}>No {ordersTab} orders.</p>
+            ) : (
+              activeOrders.map((order) => <OrdersCard key={order.id} order={order} type={ordersTab} />)
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={rootClass}>
-      <div className="mx-auto max-w-[1800px] p-3 sm:p-4 lg:p-5">
-        <div className={`rounded-[28px] border ${panelClass} overflow-hidden`}>
-          <div className={`border-b ${isDark ? "border-slate-800/80 bg-[#06111d]" : "border-slate-200 bg-white"}`}>
-            <div className="flex flex-col gap-4 px-4 py-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
-                  <img width={34} src={Logo} alt="Trading Logo" />
+      <div className="mx-auto max-w-[1920px]">
+        <div className={`${panelClass} overflow-hidden`}>
+          {/* Top navbar */}
+          <div
+            className={`sticky top-0 z-30 border-b ${isDark
+                ? "border-slate-800/80 bg-[#06111d]/95 backdrop-blur"
+                : "border-slate-200 bg-white/95 backdrop-blur"
+              }`}
+          >
+            {/* MOBILE HEADER */}
+            <div className="flex items-start justify-between gap-3 px-4 py-3 xl:hidden">
+
+              {/* Left */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
+                  <img width={30} src={Logo} alt="Trading Logo" />
                 </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-semibold tracking-wide">Trading Terminal</h2>
-                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
-                      Live execution
-                    </span>
-                    {/* <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-400 ring-1 ring-sky-500/20">
-                      Exness-style layout
-                    </span> */}
-                  </div>
-                  <p className={`mt-1 text-sm ${mutedText}`}>
-                    Clean watchlist, chart, order ticket, and account monitoring in one terminal.
-                  </p>
+
+                <div className="min-w-0">
+                  <h2 className="truncate text-xl font-semibold tracking-wide">
+                    Trading Terminal
+                  </h2>
+
+                  <span className="mt-1 inline-flex rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
+                    Live execution
+                  </span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${isDark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-white"}`}>
-                  <Search size={16} className="text-slate-400" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search symbols"
-                    className={`w-[220px] bg-transparent outline-none text-sm ${isDark ? "text-slate-100 placeholder:text-slate-500" : "text-slate-900 placeholder:text-slate-400"}`}
-                  />
-                </div>
-
+              {/* Right Mobile Buttons */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-                  className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${isDark
-                    ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
-                    : "border-slate-300 bg-white hover:bg-slate-50"
+                  onClick={() =>
+                    setTheme((prev) => (prev === "dark" ? "light" : "dark"))
+                  }
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition ${isDark
+                      ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                      : "border-slate-300 bg-white hover:bg-slate-50"
                     }`}
                 >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  {isDark ? "Light" : "Dark"}
+                  {isDark ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
 
                 <button
@@ -944,241 +1082,138 @@ const TradingTerminal = () => {
                     fetchOrders();
                     toast.success("Refreshed");
                   }}
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition ${isDark
+                      ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                      : "border-slate-300 bg-white hover:bg-slate-50"
+                    }`}
+                >
+                  <RefreshCw size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* DESKTOP HEADER - OLD UI UNCHANGED */}
+            <div className="hidden xl:flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
+                  <img width={30} src={Logo} alt="Trading Logo" />
+                </div>
+
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-semibold tracking-wide">
+                      Trading Terminal
+                    </h2>
+
+                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
+                      Live execution
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+
+                {/* Search */}
+                <div
+                  className={`flex w-full items-center gap-2 rounded-2xl border px-3 py-2 ${isDark
+                      ? "border-slate-800 bg-slate-950"
+                      : "border-slate-200 bg-white"
+                    }`}
+                >
+                  <Search size={16} className="text-slate-400" />
+
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search symbols"
+                    className={`w-full bg-transparent outline-none text-sm sm:w-[220px] ${isDark
+                        ? "text-slate-100 placeholder:text-slate-500"
+                        : "text-slate-900 placeholder:text-slate-400"
+                      }`}
+                  />
+                </div>
+
+                {/* Theme */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTheme((prev) => (prev === "dark" ? "light" : "dark"))
+                  }
                   className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${isDark
-                    ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
-                    : "border-slate-300 bg-white hover:bg-slate-50"
+                      ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                      : "border-slate-300 bg-white hover:bg-slate-50"
+                    }`}
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+
+                  <span>{isDark ? "Light" : "Dark"}</span>
+                </button>
+
+                {/* Refresh */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchProfile();
+                    fetchLivePrice();
+                    fetchOrders();
+                    toast.success("Refreshed");
+                  }}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${isDark
+                      ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                      : "border-slate-300 bg-white hover:bg-slate-50"
                     }`}
                 >
                   <RefreshCw size={16} />
-                  Refresh
+                  <span>Refresh</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr_360px] gap-0">
-            <aside className={`border-b xl:border-b-0 xl:border-r ${isDark ? "border-slate-800" : "border-slate-200"} p-4`}>
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Market Watch</h3>
-                  <p className={`text-xs ${mutedText}`}>Tap a symbol to load chart</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-slate-950 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
-                  {filteredSections.reduce((sum, sec) => sum + sec.items.length, 0)}
-                </span>
-              </div>
+          {/* Stats / header area */}
+          <div className="px-4 pt-4">
+            <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+              <div
+                className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+                  }`}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between h-full">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-2xl font-semibold">{selectedMarket.label}</h3>
 
-              <div className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
-                {filteredSections.map((section) => (
-                  <div key={section.title} className={`rounded-3xl border p-3 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div>
-                        <h4 className="font-semibold">{section.title}</h4>
-                        <p className={`text-xs ${mutedText}`}>{section.marketType.toUpperCase()} • Spread {section.spread}</p>
-                      </div>
-                      <span className={`text-xs ${mutedText}`}>{section.items.length}</span>
+                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
+                        {String(selectedMarket?.marketType || "market").toUpperCase()}
+                      </span>
+
+                      <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-400 ring-1 ring-sky-500/20">
+                        Contract {selectedMarket.contractSize || 100000}
+                      </span>
                     </div>
 
-                    <div className="space-y-2">
-                      {section.items.map((item) => {
-                        const active = item.tvSymbol === currentSymbol;
-                        return (
-                          <button
-                            key={item.tvSymbol}
-                            onClick={() => setSelectedMarket(item)}
-                            className={`w-full rounded-2xl border px-3 py-3 text-left transition ${active ? sectionButtonActive : sectionButtonInactive}`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <div className="font-medium">{item.label}</div>
-                                <div className={`text-xs ${active ? (isDark ? "text-emerald-200" : "text-emerald-700") : mutedText}`}>{item.tvSymbol}</div>
-                              </div>
-                              <ChevronRight size={16} className={active ? "text-emerald-400" : "text-slate-500"} />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </aside>
-
-            <main className="border-b xl:border-b-0 xl:border-r border-slate-800/80 p-4">
-              <div className="space-y-4">
-                <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-2xl font-semibold">{selectedMarket.label}</h3>
-                        <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
-                          {String(selectedMarket?.marketType || "market").toUpperCase()}
-                        </span>
-                        <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-400 ring-1 ring-sky-500/20">
-                          Contract {selectedMarket.contractSize || 100000}
-                        </span>
-                      </div>
-                      <p className={`mt-1 text-sm ${mutedText}`}>
-                        Live price: <span className="font-semibold text-emerald-400">{livePrice ? livePrice.toFixed(4) : "-"}</span>
-                        <span className="mx-2">•</span>
-                        Selected symbol: {currentSymbol}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${isDark ? "border-slate-800 bg-slate-950 hover:bg-slate-900" : "border-slate-300 bg-white hover:bg-slate-50"}`}
-                      >
-                        {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                        {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                  {marketStats.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.label} className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                        <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
-                          <Icon size={16} />
-                          {item.label}
-                        </div>
-                        <div className={`mt-2 text-2xl font-semibold ${item.label === "Floating PnL" ? (item.positive ? "text-emerald-400" : "text-rose-400") : ""}`}>
-                          {item.value}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div
-                  ref={chartWrapperRef}
-                  className={`relative overflow-hidden rounded-3xl border ${isDark ? "bg-black border-slate-800" : "bg-white border-slate-200"} ${isFullscreen ? "h-[100vh]" : "h-[640px]"}`}
-                >
-                  {loading && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 text-sm font-semibold text-white">
-                      Loading chart...
-                    </div>
-                  )}
-                  <div id={CONTAINER_ID} className="h-full w-full" />
-                </div>
-
-                <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <Layers3 size={16} className="text-emerald-400" />
-                    <h3 className="font-semibold">Order Ticket</h3>
+                    <p className={`mt-1 text-sm ${mutedText}`}>
+                      Live price:{" "}
+                      <span className="font-semibold text-emerald-400">
+                        {livePrice ? livePrice.toFixed(4) : "-"}
+                      </span>
+                      <span className="mx-2">•</span>
+                      Selected symbol: {currentSymbol}
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-[160px_1fr]">
-                    <div>
-                      <label className={`mb-2 block text-xs font-medium uppercase tracking-wide ${mutedText}`}>Lot Size</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={lotSize}
-                        onChange={(e) => setLotSize(e.target.value)}
-                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${softInput}`}
-                      />
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleFullscreen}
+                      className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${isDark ? "border-slate-800 bg-slate-950 hover:bg-slate-900" : "border-slate-300 bg-white hover:bg-slate-50"
+                        }`}
+                    >
+                      {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                      {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                    </button>
 
-                    <div>
-                      <label className={`mb-2 block text-xs font-medium uppercase tracking-wide ${mutedText}`}>Trigger Price</label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        min="0"
-                        value={triggerPrice}
-                        onChange={(e) => setTriggerPrice(e.target.value)}
-                        placeholder={livePrice ? String(livePrice) : "Enter trigger"}
-                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${softInput}`}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-                    {quickActions.map(({ label, key, icon: Icon, className }) => (
-                      <button
-                        key={key}
-                        onClick={() => placeOrder(key)}
-                        disabled={orderLoading || !canTrade}
-                        className={`${actionButtonBase} inline-flex items-center justify-center gap-2 ${className}`}
-                      >
-                        <Icon size={16} />
-                        {orderLoading ? "Working..." : label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </main>
-
-            <aside className="p-4">
-              <div className="space-y-4">
-                <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <Signal size={16} className="text-emerald-400" />
-                    <h3 className="font-semibold">Account</h3>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <div className={`text-sm ${mutedText}`}>Active Trading Account</div>
-                      {activeAccount ? (
-                        <div className="mt-2 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-lg font-semibold">#{activeAccount.account_no}</div>
-                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${activeAccount.account_type === "demo" ? "bg-amber-500/10 text-amber-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                              {String(activeAccount.account_type).toUpperCase()}
-                            </span>
-                            <span className="rounded-full bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-400">
-                              {activeAccount.platform}
-                            </span>
-                          </div>
-                          <div className={`text-sm ${mutedText}`}>
-                            Balance: {Number(activeAccount.balance || 0).toFixed(2)} {activeAccount.currency}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-sm text-rose-400">No active account selected</div>
-                      )}
-                    </div>
-
-                    <div className="grid gap-2">
-                      {accounts.map((acc) => {
-                        const active = activeAccount?.id === acc.id;
-                        return (
-                          <button
-                            key={acc.id}
-                            onClick={() => switchAccount(acc.id)}
-                            className={`rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${active
-                              ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
-                              : isDark
-                                ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
-                                : "border-slate-200 bg-white hover:bg-slate-50"
-                              }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span>{acc.account_type === "demo" ? "Demo" : "Real"}</span>
-                              <span>{Number(acc.balance || 0).toFixed(2)}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <SlidersHorizontal size={16} className="text-sky-400" />
-                    <h3 className="font-semibold">Live Controls</h3>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1187,71 +1222,171 @@ const TradingTerminal = () => {
                         fetchOrders();
                         toast.success("Updated");
                       }}
-                      className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${isDark ? "border-slate-800 bg-slate-950 hover:bg-slate-900" : "border-slate-300 bg-white hover:bg-slate-50"}`}
+                      className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${isDark ? "border-slate-800 bg-slate-950 hover:bg-slate-900" : "border-slate-300 bg-white hover:bg-slate-50"
+                        }`}
                     >
                       <RefreshCw size={16} />
-                      Refresh Data
+                      Sync
                     </button>
-                    <div className={`rounded-2xl border px-4 py-3 text-sm ${isDark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"}`}>
-                      <div className={mutedText}>Selected Symbol</div>
-                      <div className="mt-1 font-semibold">{currentSymbol}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-semibold">Open Orders</h3>
-                    <span className={`text-sm ${mutedText}`}>{refreshingOrders ? "Refreshing..." : openOrders.length}</span>
-                  </div>
-                  <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1">
-                    {openOrders.length === 0 ? (
-                      <p className={`text-sm ${mutedText}`}>No open orders.</p>
-                    ) : (
-                      openOrders.map((order) => <OrdersMobileCard key={order.id} order={order} type="open" />)
-                    )}
                   </div>
                 </div>
               </div>
-            </aside>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {marketStats.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <div
+                      key={item.label}
+                      className={`min-w-0 rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+                        }`}
+                    >
+                      <div className={`flex items-center gap-2 text-sm ${mutedText}`}>
+                        <Icon size={16} />
+                        {item.label}
+                      </div>
+
+                      <div
+                        className={`mt-2 text-2xl font-semibold ${item.label === "Floating PnL"
+                            ? item.positive
+                              ? "text-emerald-400"
+                              : "text-rose-400"
+                            : ""
+                          }`}
+                      >
+                        {item.value}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
-          <div className={`border-t ${isDark ? "border-slate-800" : "border-slate-200"} p-4`}>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-semibold">Pending Orders</h3>
-                    <span className={`text-sm ${mutedText}`}>{pendingOrders.length}</span>
+          {/* Main layout */}
+          <div className="grid grid-cols-1 gap-4 p-4 2xl:grid-cols-[minmax(0,7fr)_minmax(360px,3fr)]">
+            {/* Left - chart */}
+            <main className="space-y-4">
+              <div
+                ref={chartWrapperRef}
+                className={`relative overflow-hidden rounded-3xl border ${isDark ? "bg-black border-slate-800" : "bg-white border-slate-200"
+                  } h-[420px] sm:h-[520px] lg:h-[68vh] min-h-[380px] lg:min-h-[560px]`}
+              >
+                {loading && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 text-sm font-semibold text-white">
+                    Loading chart...
                   </div>
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                    {pendingOrders.length === 0 ? (
-                      <p className={`text-sm ${mutedText}`}>No pending orders.</p>
-                    ) : (
-                      pendingOrders.map((order) => <OrdersMobileCard key={order.id} order={order} type="pending" />)
-                    )}
-                  </div>
+                )}
+                <div id={CONTAINER_ID} className="h-full w-full" />
+              </div>
+            </main>
+
+            {/* Right - responsive panel */}
+            <div className="flex h-auto flex-col gap-3 xl:grid xl:grid-cols-[1fr_72px] xl:h-[68vh] xl:min-h-[560px]">
+              <div
+                className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+                  } overflow-hidden flex flex-col max-h-[600px] xl:min-h-0`}
+              >
+                <div className="xl:hidden mb-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {rightTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const active = activePanel === tab.key;
+
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActivePanel(tab.key)}
+                        className={`rounded-2xl px-3 py-3 text-xs font-semibold transition flex items-center justify-center gap-2 ${active
+                            ? isDark
+                              ? "bg-slate-900 text-white"
+                              : "bg-slate-100 text-slate-900"
+                            : isDark
+                              ? "bg-slate-950 text-slate-400 hover:bg-slate-900 hover:text-white"
+                              : "bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                          }`}
+                      >
+                        <Icon size={16} />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className={`rounded-3xl border p-4 lg:col-span-2 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-semibold">Closed Orders</h3>
-                    <span className={`text-sm ${mutedText}`}>{closedOrders.length}</span>
-                  </div>
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                    {closedOrders.length === 0 ? (
-                      <p className={`text-sm ${mutedText}`}>No closed orders.</p>
-                    ) : (
-                      closedOrders.map((order) => <OrdersMobileCard key={order.id} order={order} type="closed" />)
-                    )}
-                  </div>
-                </div>
+                <div className="flex-1 overflow-y-auto pr-1">{renderRightPanel()}</div>
               </div>
 
-              <div className="hidden xl:block space-y-4">
-                <OrdersDesktopTable title="Open Orders" items={openOrders} type="open" />
-                <OrdersDesktopTable title="Pending Orders" items={pendingOrders} type="pending" />
-                <OrdersDesktopTable title="Closed Orders" items={closedOrders} type="closed" />
+              <div
+                className={`hidden xl:flex rounded-3xl border py-3 px-2 flex-col items-center gap-3 h-full ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+                  }`}
+              >
+                {rightTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const active = activePanel === tab.key;
+
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActivePanel(tab.key)}
+                      className={`w-full flex flex-col items-center justify-center gap-2 rounded-2xl px-2 py-3 text-xs font-medium transition-all duration-200 ${active
+                          ? isDark
+                            ? "bg-slate-900 text-white"
+                            : "bg-slate-100 text-slate-900"
+                          : isDark
+                            ? "text-slate-400 hover:bg-slate-900 hover:text-white"
+                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                        }`}
+                    >
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${active ? "bg-slate-200 text-slate-900" : isDark ? "bg-slate-900" : "bg-slate-100"
+                          }`}
+                      >
+                        <Icon size={18} />
+                      </div>
+
+                      <span className="leading-tight text-center">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Kept only for very small edge cases, but hidden when the main responsive panel is visible */}
+          <div className={`hidden border-t ${isDark ? "border-slate-800" : "border-slate-200"} p-4 2xl:hidden`}>
+            <div className={`rounded-3xl border p-4 ${isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"}`}>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-semibold">Orders</h3>
+                <span className={`text-sm ${mutedText}`}>{refreshingOrders ? "Refreshing..." : activeOrders.length}</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ["open", `Open (${openOrders.length})`],
+                  ["pending", `Pending (${pendingOrders.length})`],
+                  ["closed", `Closed (${closedOrders.length})`],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setOrdersTab(key)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${ordersTab === key
+                        ? "bg-emerald-500 text-slate-950"
+                        : isDark
+                          ? "bg-slate-950 text-slate-300"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {activeOrders.length === 0 ? (
+                  <p className={`text-sm ${mutedText}`}>No {ordersTab} orders.</p>
+                ) : (
+                  activeOrders.map((order) => <OrdersCard key={order.id} order={order} type={ordersTab} />)
+                )}
               </div>
             </div>
           </div>
