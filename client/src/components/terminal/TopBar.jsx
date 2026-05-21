@@ -133,24 +133,7 @@ const TopBar = ({
   };
 
   return (
-    <header
-  className="
-    fixed
-    left-0
-    top-0
-    z-[1000]
-    flex
-    h-[68px]
-    w-full
-    items-center
-    border-b
-    border-slate-700
-    bg-[#0b1217]
-    px-4
-    text-white
-    backdrop-blur-md
-  "
->
+    <header className="flex h-[68px] items-center border-b px-4 text-white">
       {/* LEFT */}
 
       <div className="flex items-center gap-3 lg:gap-10">
