@@ -239,7 +239,7 @@ const TerminalShell = () => {
           }
         />
 
-        <div className="relative mt-[68px] flex-1 overflow-hidden">
+        <div className="relative flex-1 overflow-hidden">
           {mobilePanel}
         </div>
 
