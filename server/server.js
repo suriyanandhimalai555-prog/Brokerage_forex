@@ -12,6 +12,7 @@ import accountRoutes from "./routes/accountRoutes.js";
 import depositRoutes from "./routes/depositRoutes.js";
 import withdrawRoutes from "./routes/withdrawRoutes.js";
 import transferRoutes from "./routes/transferRoutes.js";
+import adminTransactionRoutes from "./routes/adminTransactionRoutes.js";
 
 import { oxaPayWebhook } from "./controllers/accountController.js";
 
@@ -59,6 +60,11 @@ app.use("/api/withdrawals", withdrawRoutes);
 
 // TRANSFER
 app.use("/api/transfers", transferRoutes);
+
+app.use(
+  "/api/admin",
+  adminTransactionRoutes
+);
 
 /*
 |--------------------------------------------------------------------------

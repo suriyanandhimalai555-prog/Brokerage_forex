@@ -5,7 +5,7 @@ const priceCache = new Map();
 
 const CACHE_TTL = {
   crypto: 1000,
-  other: 1000,
+  forex: 1000,
 };
 
 const normalizeSymbol = (symbol) => {
@@ -16,7 +16,9 @@ const normalizeSymbol = (symbol) => {
 
   if (!s) return null;
 
-  // Binance style: BINANCE:BTCUSDT, BTCUSDT, BTC/USDT
+  // =========================
+  // BINANCE CRYPTO
+  // =========================
   if (
     s.startsWith("BINANCE:") ||
     /^[A-Z0-9]+\/USDT$/.test(s) ||
@@ -34,7 +36,9 @@ const normalizeSymbol = (symbol) => {
     };
   }
 
-  // TwelveData / forex style: OANDA:EURUSD, TVC:EURUSD, EURUSD, EUR/USD
+  // =========================
+  // FOREX + METALS
+  // =========================
   if (
     s.startsWith("OANDA:") ||
     s.startsWith("TVC:") ||
@@ -51,10 +55,18 @@ const normalizeSymbol = (symbol) => {
     }
 
     return {
-      provider: "twelvedata",
-      cacheKey: `TVC:${pair}`,
-      providerSymbol: `${pair.slice(0, 3)}/${pair.slice(3)}`,
-      ttl: CACHE_TTL.other,
+      provider:
+        pair.startsWith("XAU") ||
+        pair.startsWith("XAG") ||
+        pair.startsWith("XPT")
+          ? "metal"
+          : "forexrate",
+
+      cacheKey: `FOREX:${pair}`,
+
+      providerSymbol: pair,
+
+      ttl: CACHE_TTL.forex,
     };
   }
 
@@ -62,114 +74,218 @@ const normalizeSymbol = (symbol) => {
 };
 
 const cleanDisplaySymbol = (symbol) => {
-  const raw = String(symbol || "")
+  return String(symbol || "")
     .toUpperCase()
     .replace(/\s+/g, "")
     .replace(/^OANDA:/, "")
     .replace(/^TVC:/, "")
-    .replace(/^BINANCE:/, "");
-
-  if (raw.includes("/")) return raw;
-  if (/^[A-Z]{6}$/.test(raw)) return `${raw.slice(0, 3)}/${raw.slice(3)}`;
-  if (/^[A-Z0-9]+USDT$/.test(raw)) return `${raw.slice(0, -4)}/USDT`;
-  if (/^[A-Z0-9]+USD$/.test(raw) && raw.length > 3) return `${raw.slice(0, -3)}/USD`;
-  return raw;
+    .replace(/^BINANCE:/, "")
+    .replace("/", "");
 };
 
 const fetchRemotePrice = async (meta) => {
+
   // =========================
   // BINANCE
   // =========================
   if (meta.provider === "binance") {
+
     try {
+
       const response = await axios.get(
         "https://data-api.binance.vision/api/v3/ticker/price",
         {
           params: {
             symbol: meta.providerSymbol,
           },
+
           timeout: 5000,
+
           headers: {
             "User-Agent": "Mozilla/5.0",
           },
         }
       );
 
-      console.log("BINANCE RESPONSE:", response.data);
+      console.log(
+        "BINANCE RESPONSE:",
+        response.data
+      );
 
-      const price = parseFloat(response.data?.price);
+      const price = parseFloat(
+        response.data?.price
+      );
 
       if (Number.isNaN(price)) {
-        throw new Error("Invalid Binance price");
+        throw new Error(
+          "Invalid Binance price"
+        );
       }
 
       return price;
+
     } catch (err) {
+
       console.error(
         "BINANCE ERROR:",
-        err?.response?.data || err.message
+        err?.response?.data ||
+          err.message
       );
 
       throw new Error(
         err?.response?.data?.msg ||
-          "Failed to fetch Binance live price"
+          "Failed to fetch Binance price"
       );
     }
   }
 
-  // =========================
-  // TWELVEDATA
-  // =========================
-  if (!process.env.TWELVE_API_KEY) {
-    throw new Error("TWELVE_API_KEY is missing");
-  }
+ // =========================
+// METALS (YAHOO FINANCE)
+// =========================
+if (meta.provider === "metal") {
 
   try {
+
+    const metalMap = {
+      XAUUSD: "GC=F",
+      XAGUSD: "SI=F",
+      XPTUSD: "PL=F",
+    };
+
+    const yahooSymbol =
+      metalMap[meta.providerSymbol];
+
+    if (!yahooSymbol) {
+      throw new Error(
+        "Unsupported metal symbol"
+      );
+    }
+
     const response = await axios.get(
-      "https://api.twelvedata.com/price",
+      "https://query1.finance.yahoo.com/v8/finance/chart/" +
+        yahooSymbol,
       {
-        params: {
-          symbol: meta.providerSymbol,
-          apikey: process.env.TWELVE_API_KEY,
-        },
         timeout: 5000,
       }
     );
 
-    console.log("TWELVEDATA RESPONSE:", response.data);
+    console.log(
+      "YAHOO METAL RESPONSE:",
+      response.data
+    );
 
-    const price = parseFloat(response.data?.price);
+    const result =
+      response.data?.chart?.result?.[0];
+
+    const price =
+      result?.meta?.regularMarketPrice;
+
+    if (
+      Number.isNaN(Number(price)) ||
+      !price
+    ) {
+      throw new Error(
+        "Invalid metal price"
+      );
+    }
+
+    return Number(price);
+
+  } catch (err) {
+
+    console.error(
+      "YAHOO METAL ERROR:",
+      err?.response?.data ||
+        err.message
+    );
+
+    throw new Error(
+      "Failed to fetch metal price"
+    );
+  }
+}
+
+  // =========================
+  // FOREXRATE API
+  // =========================
+  if (!process.env.FOREXRATE_API_KEY) {
+    throw new Error(
+      "FOREXRATE_API_KEY is missing"
+    );
+  }
+
+  try {
+
+    const response = await axios.get(
+      "https://api.forexrateapi.com/v1/latest",
+      {
+        params: {
+          api_key:
+            process.env.FOREXRATE_API_KEY,
+
+          base:
+            meta.providerSymbol.slice(0, 3),
+
+          currencies:
+            meta.providerSymbol.slice(3),
+        },
+
+        timeout: 5000,
+      }
+    );
+
+    console.log(
+      "FOREXRATE RESPONSE:",
+      response.data
+    );
+
+    const quoteCurrency =
+      meta.providerSymbol.slice(3);
+
+    const price = parseFloat(
+      response.data?.rates?.[quoteCurrency]
+    );
 
     if (Number.isNaN(price)) {
       throw new Error(
-        response.data?.message ||
-          response.data?.status ||
-          "Invalid TwelveData price"
+        "Invalid ForexRate price"
       );
     }
 
     return price;
+
   } catch (err) {
+
     console.error(
-      "TWELVEDATA ERROR:",
-      err?.response?.data || err.message
+      "FOREXRATE ERROR:",
+      err?.response?.data ||
+        err.message
     );
 
     throw new Error(
       err?.response?.data?.message ||
-        "Failed to fetch TwelveData price"
+        "Failed to fetch ForexRate price"
     );
   }
 };
 
-export const getLivePrice = async (req, res) => {
+export const getLivePrice = async (
+  req,
+  res
+) => {
   try {
+
     const encoded = req.params.symbol;
 
-const symbol = Buffer.from(encoded, "base64").toString("utf-8");
+    const symbol = Buffer.from(
+      encoded,
+      "base64"
+    ).toString("utf-8");
 
     if (!symbol) {
-      return res.status(400).json({ message: "Symbol is required" });
+      return res.status(400).json({
+        message: "Symbol is required",
+      });
     }
 
     const meta = normalizeSymbol(symbol);
@@ -181,14 +297,24 @@ const symbol = Buffer.from(encoded, "base64").toString("utf-8");
     }
 
     const now = Date.now();
-    const cached = priceCache.get(meta.cacheKey);
+
+    const cached = priceCache.get(
+      meta.cacheKey
+    );
 
     let price;
 
-    if (cached && now - cached.updatedAt < meta.ttl) {
+    if (
+      cached &&
+      now - cached.updatedAt < meta.ttl
+    ) {
       price = cached.price;
     } else {
-      price = await fetchRemotePrice(meta);
+
+      price = await fetchRemotePrice(
+        meta
+      );
+
       priceCache.set(meta.cacheKey, {
         price,
         updatedAt: now,
@@ -196,18 +322,38 @@ const symbol = Buffer.from(encoded, "base64").toString("utf-8");
       });
     }
 
-    await processPendingOrdersBySymbol(cleanDisplaySymbol(symbol), price);
+    await processPendingOrdersBySymbol(
+      cleanDisplaySymbol(symbol),
+      price
+    );
 
     return res.json({
-      symbol: cleanDisplaySymbol(symbol),
+      symbol:
+        cleanDisplaySymbol(symbol),
+
+      rawSymbol: symbol,
+
+      normalizedSymbol:
+        cleanDisplaySymbol(symbol),
+
       price,
+
       updatedAt: now,
+
       source: meta.provider,
     });
+
   } catch (err) {
-    console.error(err?.response?.data || err.message);
+
+    console.error(
+      err?.response?.data ||
+        err.message
+    );
+
     return res.status(500).json({
-      message: err.message || "Live price error",
+      message:
+        err.message ||
+        "Live price error",
     });
   }
 };
