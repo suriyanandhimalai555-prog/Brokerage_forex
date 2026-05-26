@@ -236,7 +236,7 @@ const ChartWorkspace = memo(
                 transition hover:bg-rose-600
               "
             >
-              Sell {livePrice?.toFixed(3)}
+              Sell {Number(livePrice || 0).toFixed(3)}
             </button>
 
             <button
@@ -247,7 +247,7 @@ const ChartWorkspace = memo(
                 transition hover:bg-blue-600
               "
             >
-              Buy {livePrice?.toFixed(3)}
+              Buy {Number(livePrice || 0).toFixed(3)}
             </button>
           </div>
 
@@ -273,7 +273,7 @@ const ChartWorkspace = memo(
               text-sm font-semibold text-white
             "
           >
-            Sell {livePrice?.toFixed(3)}
+            Sell {Number(livePrice || 0).toFixed(3)}
           </button>
 
           <button
@@ -283,7 +283,7 @@ const ChartWorkspace = memo(
               text-sm font-semibold text-white
             "
           >
-            Buy {livePrice?.toFixed(3)}
+            Buy {Number(livePrice || 0).toFixed(3)}
           </button>
         </div>
 

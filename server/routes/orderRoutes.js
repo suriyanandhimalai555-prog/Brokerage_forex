@@ -6,6 +6,7 @@ import {
   getAllOrdersAdmin,
   getOpenOrdersAdmin,
   getClosedOrdersAdmin,
+  updateOrderProtection,
 } from "../controllers/orderController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 
@@ -17,5 +18,6 @@ router.get("/admin/all", protect, getAllOrdersAdmin);
 router.get("/admin/open", protect, getOpenOrdersAdmin);
 router.get("/admin/closed",  protect, getClosedOrdersAdmin);
 router.patch("/:id/close", protect, closeOrder);
+router.put("/:id/protection", protect, updateOrderProtection);
 
 export default router;

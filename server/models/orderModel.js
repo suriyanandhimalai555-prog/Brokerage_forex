@@ -18,6 +18,10 @@ export const createOrder = async (
 
     trigger_price = null,
     open_price = null,
+
+    // NEW
+    take_profit = null,
+    stop_loss = null,
   },
   client = pool
 ) => {
@@ -41,6 +45,9 @@ export const createOrder = async (
       trigger_price,
       open_price,
 
+      take_profit,
+      stop_loss,
+
       created_at
     )
 
@@ -62,6 +69,9 @@ export const createOrder = async (
 
       $11,
       $12,
+
+      $13,
+      $14,
 
       NOW()
     )
@@ -86,6 +96,10 @@ export const createOrder = async (
 
     trigger_price,
     open_price,
+
+    // NEW
+    take_profit,
+    stop_loss,
   ];
 
   const { rows } = await client.query(
@@ -169,6 +183,37 @@ export const closeOrderByIdAndUser = async (
       close_price,
       close_time,
       profit,
+      id,
+      user_id,
+    ]
+  );
+
+  return rows[0] || null;
+};
+
+export const updateOrderProtectionByIdAndUser = async (
+  {
+    id,
+    user_id,
+    take_profit = null,
+    stop_loss = null,
+  },
+  client = pool
+) => {
+  const { rows } = await client.query(
+    `
+    UPDATE orders
+    SET
+      take_profit = $1,
+      stop_loss = $2
+    WHERE id = $3
+      AND user_id = $4
+      AND status IN ('open', 'pending')
+    RETURNING *;
+    `,
+    [
+      take_profit,
+      stop_loss,
       id,
       user_id,
     ]

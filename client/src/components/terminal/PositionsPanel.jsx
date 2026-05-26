@@ -2,7 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { calcOrderPnl, cleanSymbol, formatPrice } from "../../utils/terminalHelpers";
 
-const PositionsPanel = ({ activeTab, setActiveTab, orders, livePrice, closeOrder, onClose, accountStats }) => {
+const PositionsPanel = ({ activeTab, setActiveTab, orders, livePrice, closeOrder, onClose, accountStats, onEditProtection }) => {
   const tabs = [
     ["open", `Open ${orders.open.length}`],
     ["pending", `Pending ${orders.pending.length}`],
@@ -73,7 +73,7 @@ const PositionsPanel = ({ activeTab, setActiveTab, orders, livePrice, closeOrder
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">{Number(order.lot_size || 0).toFixed(2)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{formatPrice(order.open_price)}</td>
-                    <td className="px-4 py-4 whitespace-nowrap">{livePrice ? livePrice.toFixed(3) : "-"}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">{Number(livePrice || 0).toFixed(3)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{formatPrice(order.take_profit)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{formatPrice(order.stop_loss)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{order.position_id || order.id}</td>
@@ -83,17 +83,42 @@ const PositionsPanel = ({ activeTab, setActiveTab, orders, livePrice, closeOrder
                       {pnl.toFixed(2)}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      {isOpen ? (
-                        <button
-                          onClick={() => closeOrder(order.id)}
-                          className="rounded border border-slate-600 px-3 py-1 text-[13px] hover:bg-slate-700"
-                        >
-                          Close
-                        </button>
-                      ) : (
-                        <span className="text-slate-500">—</span>
-                      )}
-                    </td>
+  {isOpen ? (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={async () => {
+          const tp = window.prompt(
+            "Enter Take Profit",
+            order.take_profit ?? ""
+          );
+
+          if (tp === null) return;
+
+          const sl = window.prompt(
+            "Enter Stop Loss",
+            order.stop_loss ?? ""
+          );
+
+          if (sl === null) return;
+
+          await onEditProtection?.(order.id, tp, sl);
+        }}
+        className="rounded border border-slate-600 px-3 py-1 text-[13px] hover:bg-slate-700"
+      >
+        Edit
+      </button>
+
+      <button
+        onClick={() => closeOrder(order.id)}
+        className="rounded border border-slate-600 px-3 py-1 text-[13px] hover:bg-slate-700"
+      >
+        Close
+      </button>
+    </div>
+  ) : (
+    <span className="text-slate-500">—</span>
+  )}
+</td>
                   </tr>
                 );
               })

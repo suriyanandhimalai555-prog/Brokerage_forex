@@ -4,6 +4,7 @@ import {
   getOrdersByUser,
   getOpenOrderByIdAndUser,
   closeOrderByIdAndUser,
+  updateOrderProtectionByIdAndUser,
 } from "../models/orderModel.js";
 
 const getContractSize = (symbol) => {
@@ -163,17 +164,160 @@ const mapOrderForResponse = (order) => {
 
     open_price:
       isPending ||
-      order.open_price === null ||
-      Number(order.open_price) === 0
+        order.open_price === null ||
+        Number(order.open_price) === 0
         ? null
         : Number(order.open_price),
 
     trigger_price:
       order.trigger_price === null ||
-      order.trigger_price === undefined
+        order.trigger_price === undefined
         ? null
         : Number(order.trigger_price),
+
+    take_profit:
+      order.take_profit === null ||
+        order.take_profit === undefined
+        ? null
+        : Number(order.take_profit),
+
+    stop_loss:
+      order.stop_loss === null ||
+        order.stop_loss === undefined
+        ? null
+        : Number(order.stop_loss),
   };
+};
+
+const shouldCloseByProtection = (order, marketPrice) => {
+  const price = Number(marketPrice);
+
+  if (Number.isNaN(price)) return false;
+
+  const tp =
+    order.take_profit === null ||
+      order.take_profit === undefined
+      ? null
+      : Number(order.take_profit);
+
+  const sl =
+    order.stop_loss === null ||
+      order.stop_loss === undefined
+      ? null
+      : Number(order.stop_loss);
+
+  const side = getSideFromType(order.type);
+
+  if (side === "buy") {
+    if (tp !== null && price >= tp) return true;
+    if (sl !== null && price <= sl) return true;
+  } else {
+    if (tp !== null && price <= tp) return true;
+    if (sl !== null && price >= sl) return true;
+  }
+
+  return false;
+};
+
+export const processOpenOrdersBySymbol = async (
+  symbol,
+  marketPrice
+) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const normalizedSymbol = String(symbol || "")
+      .toUpperCase()
+      .replace(/\s+/g, "")
+      .replace(/\//g, "")
+      .replace("OANDA:", "")
+      .replace("BINANCE:", "")
+      .replace("TVC:", "");
+
+    const result = await client.query(
+      `
+  SELECT *
+  FROM orders
+  WHERE REPLACE(
+  REPLACE(
+    REPLACE(
+      REPLACE(
+        UPPER(symbol),
+        '/',
+        ''
+      ),
+      'OANDA:',
+      ''
+    ),
+    'BINANCE:',
+    ''
+  ),
+  'TVC:',
+  ''
+) = $1
+    AND status = 'open'
+  ORDER BY id ASC
+  FOR UPDATE
+  `,
+      [normalizedSymbol]
+    );
+
+    const closedOrders = [];
+
+    for (const order of result.rows) {
+      if (!shouldCloseByProtection(order, marketPrice)) {
+        continue;
+      }
+
+      const exitPrice = Number(marketPrice);
+
+      const profit = calculatePnL({
+        type: order.type,
+        openPrice: order.open_price,
+        closePrice: exitPrice,
+        units: order.units,
+      });
+
+      const closedOrder = await closeOrderByIdAndUser(
+        {
+          id: order.id,
+          user_id: order.user_id,
+          close_price: exitPrice,
+          close_time: new Date(),
+          profit,
+        },
+        client
+      );
+
+      if (!closedOrder) continue;
+
+      const balanceChange =
+        Number(order.margin || 0) + profit;
+
+      await client.query(
+        `
+        UPDATE trading_accounts
+        SET balance = balance + $1
+        WHERE id = $2
+        `,
+        [balanceChange, order.trading_account_id]
+      );
+
+      closedOrders.push(mapOrderForResponse(closedOrder));
+    }
+
+    await client.query("COMMIT");
+
+    return closedOrders;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Open order protection error:", err);
+    return [];
+  } finally {
+    client.release();
+  }
 };
 
 export const processPendingOrdersBySymbol = async (
@@ -185,16 +329,25 @@ export const processPendingOrdersBySymbol = async (
   try {
     await client.query("BEGIN");
 
+    const normalizedSymbol = String(symbol || "")
+      .toUpperCase()
+      .replace(/\s+/g, "")
+      .replace("/", "");
+
     const result = await client.query(
       `
-      SELECT *
-      FROM orders
-      WHERE UPPER(symbol) = UPPER($1)
-      AND status = 'pending'
-      ORDER BY id ASC
-      FOR UPDATE
-      `,
-      [symbol]
+  SELECT *
+  FROM orders
+  WHERE REPLACE(
+    UPPER(symbol),
+    '/',
+    ''
+  ) = $1
+    AND status = 'pending'
+  ORDER BY id ASC
+  FOR UPDATE
+  `,
+      [normalizedSymbol]
     );
 
     const executed = [];
@@ -264,6 +417,10 @@ export const placeOrder = async (req, res) => {
       price,
       trigger_price,
       leverage = 100,
+
+      // NEW
+      take_profit,
+      stop_loss,
     } = req.body;
 
     if (
@@ -294,24 +451,60 @@ export const placeOrder = async (req, res) => {
       ? Number(trigger_price)
       : Number(price);
 
+    // TP / SL
+    const tp =
+      take_profit !== undefined &&
+        take_profit !== null &&
+        take_profit !== ""
+        ? Number(take_profit)
+        : null;
+
+    const sl =
+      stop_loss !== undefined &&
+        stop_loss !== null &&
+        stop_loss !== ""
+        ? Number(stop_loss)
+        : null;
+
+    // LOT VALIDATION
     if (Number.isNaN(lot) || lot <= 0) {
       return res.status(400).json({
         message: "Invalid lot size",
       });
     }
 
+    // LEVERAGE VALIDATION
     if (Number.isNaN(lev) || lev <= 0) {
       return res.status(400).json({
         message: "Invalid leverage",
       });
     }
 
+    // ENTRY VALIDATION
     if (Number.isNaN(entryPrice) || entryPrice <= 0) {
       return res.status(400).json({
         message: pending
           ? "Invalid trigger price"
           : "Invalid price",
       });
+    }
+
+    // TP VALIDATION
+    if (tp !== null) {
+      if (Number.isNaN(tp) || tp <= 0) {
+        return res.status(400).json({
+          message: "Invalid take profit",
+        });
+      }
+    }
+
+    // SL VALIDATION
+    if (sl !== null) {
+      if (Number.isNaN(sl) || sl <= 0) {
+        return res.status(400).json({
+          message: "Invalid stop loss",
+        });
+      }
     }
 
     const contractSize = getContractSize(symbol);
@@ -352,6 +545,7 @@ export const placeOrder = async (req, res) => {
       });
     }
 
+    // DEDUCT MARGIN
     await client.query(
       `
       UPDATE trading_accounts
@@ -361,20 +555,40 @@ export const placeOrder = async (req, res) => {
       [margin, trading_account_id]
     );
 
+    // CREATE ORDER
     const order = await createOrder(
       {
         user_id,
         trading_account_id,
+
         symbol,
+
         type: normalizedType,
+
         side: getSideFromType(normalizedType),
+
         status: pending ? "pending" : "open",
+
         lot_size: lot,
+
         units,
+
         leverage: lev,
+
         margin,
-        trigger_price: pending ? entryPrice : null,
-        open_price: pending ? null : entryPrice,
+
+        trigger_price: pending
+          ? entryPrice
+          : null,
+
+        open_price: pending
+          ? null
+          : entryPrice,
+
+        // NEW
+        take_profit: tp,
+
+        stop_loss: sl,
       },
       client
     );
@@ -383,13 +597,15 @@ export const placeOrder = async (req, res) => {
 
     return res.json({
       success: true,
+
       order: mapOrderForResponse(order),
+
       balance: currentBalance - margin,
     });
   } catch (err) {
     await client.query("ROLLBACK");
 
-    console.error(err);
+    console.error("placeOrder error:", err);
 
     return res.status(500).json({
       message: "Server error",
@@ -687,5 +903,81 @@ export const getClosedOrdersAdmin = async (req, res) => {
       success: false,
       message: "Failed to fetch closed orders",
     });
+  }
+};
+
+export const updateOrderProtection = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const user_id = req.user?.id;
+    const { id } = req.params;
+    const { take_profit, stop_loss } = req.body;
+
+    if (!user_id) {
+      return res.status(401).json({
+        message: "Invalid token",
+      });
+    }
+
+    if (!id) {
+      return res.status(400).json({
+        message: "Order id is required",
+      });
+    }
+
+    const tp =
+      take_profit === "" ||
+        take_profit === undefined ||
+        take_profit === null
+        ? null
+        : Number(take_profit);
+
+    const sl =
+      stop_loss === "" ||
+        stop_loss === undefined ||
+        stop_loss === null
+        ? null
+        : Number(stop_loss);
+
+    if (tp !== null && (Number.isNaN(tp) || tp <= 0)) {
+      return res.status(400).json({
+        message: "Invalid take profit",
+      });
+    }
+
+    if (sl !== null && (Number.isNaN(sl) || sl <= 0)) {
+      return res.status(400).json({
+        message: "Invalid stop loss",
+      });
+    }
+
+    const updated = await updateOrderProtectionByIdAndUser(
+      {
+        id,
+        user_id,
+        take_profit: tp,
+        stop_loss: sl,
+      },
+      client
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      order: mapOrderForResponse(updated),
+    });
+  } catch (err) {
+    console.error("updateOrderProtection error:", err);
+    return res.status(500).json({
+      message: "Server error",
+    });
+  } finally {
+    client.release();
   }
 };

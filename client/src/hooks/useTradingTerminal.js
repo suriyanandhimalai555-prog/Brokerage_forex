@@ -291,13 +291,53 @@ export const useTradingTerminal = () => {
     }
   };
 
+  const placeProtectionUpdate = async (id, takeProfit, stopLoss) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(
+      buildApiUrl(`/api/orders/${id}/protection`),
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          take_profit:
+            takeProfit === "" || takeProfit === null
+              ? null
+              : Number(takeProfit),
+          stop_loss:
+            stopLoss === "" || stopLoss === null
+              ? null
+              : Number(stopLoss),
+        }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast.error(data?.message || "Failed to update protection");
+      return;
+    }
+
+    toast.success("Protection updated ✅");
+    await fetchOrders();
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to update protection");
+  }
+};
+
   useEffect(() => {
     fetchProfile();
     fetchAccounts();
     fetchLivePrice();
     fetchOrders();
 
-    const priceTimer = setInterval(fetchLivePrice, 1200);
+    const priceTimer = setInterval(fetchLivePrice, 200);
     const orderTimer = setInterval(fetchOrders, 5000);
     const profileTimer = setInterval(fetchProfile, 7000);
 
@@ -398,6 +438,7 @@ export const useTradingTerminal = () => {
     switchAccount,
     placeOrder,
     closeOrder,
+    placeProtectionUpdate,
     filteredWatchlist,
     openOrders,
     pendingOrders,

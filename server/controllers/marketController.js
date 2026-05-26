@@ -1,11 +1,11 @@
 import axios from "axios";
-import { processPendingOrdersBySymbol } from "./orderController.js";
+import { processPendingOrdersBySymbol, processOpenOrdersBySymbol } from "./orderController.js";
 
 const priceCache = new Map();
 
 const CACHE_TTL = {
-  crypto: 1000,
-  forex: 1000,
+  crypto: 100,
+  forex: 100,
 };
 
 const normalizeSymbol = (symbol) => {
@@ -57,8 +57,8 @@ const normalizeSymbol = (symbol) => {
     return {
       provider:
         pair.startsWith("XAU") ||
-        pair.startsWith("XAG") ||
-        pair.startsWith("XPT")
+          pair.startsWith("XAG") ||
+          pair.startsWith("XPT")
           ? "metal"
           : "forexrate",
 
@@ -129,81 +129,81 @@ const fetchRemotePrice = async (meta) => {
       console.error(
         "BINANCE ERROR:",
         err?.response?.data ||
-          err.message
+        err.message
       );
 
       throw new Error(
         err?.response?.data?.msg ||
-          "Failed to fetch Binance price"
+        "Failed to fetch Binance price"
       );
     }
   }
 
- // =========================
-// METALS (YAHOO FINANCE)
-// =========================
-if (meta.provider === "metal") {
+  // =========================
+  // METALS (YAHOO FINANCE)
+  // =========================
+  if (meta.provider === "metal") {
 
-  try {
+    try {
 
-    const metalMap = {
-      XAUUSD: "GC=F",
-      XAGUSD: "SI=F",
-      XPTUSD: "PL=F",
-    };
+      const metalMap = {
+        XAUUSD: "GC=F",
+        XAGUSD: "SI=F",
+        XPTUSD: "PL=F",
+      };
 
-    const yahooSymbol =
-      metalMap[meta.providerSymbol];
+      const yahooSymbol =
+        metalMap[meta.providerSymbol];
 
-    if (!yahooSymbol) {
-      throw new Error(
-        "Unsupported metal symbol"
-      );
-    }
-
-    const response = await axios.get(
-      "https://query1.finance.yahoo.com/v8/finance/chart/" +
-        yahooSymbol,
-      {
-        timeout: 5000,
+      if (!yahooSymbol) {
+        throw new Error(
+          "Unsupported metal symbol"
+        );
       }
-    );
 
-    console.log(
-      "YAHOO METAL RESPONSE:",
-      response.data
-    );
+      const response = await axios.get(
+        "https://query1.finance.yahoo.com/v8/finance/chart/" +
+        yahooSymbol,
+        {
+          timeout: 5000,
+        }
+      );
 
-    const result =
-      response.data?.chart?.result?.[0];
+      console.log(
+        "YAHOO METAL RESPONSE:",
+        response.data
+      );
 
-    const price =
-      result?.meta?.regularMarketPrice;
+      const result =
+        response.data?.chart?.result?.[0];
 
-    if (
-      Number.isNaN(Number(price)) ||
-      !price
-    ) {
+      const price =
+        result?.meta?.regularMarketPrice;
+
+      if (
+        Number.isNaN(Number(price)) ||
+        !price
+      ) {
+        throw new Error(
+          "Invalid metal price"
+        );
+      }
+
+      return Number(price);
+
+    } catch (err) {
+
+      console.error(
+        "YAHOO METAL ERROR:",
+        err?.response?.data ||
+        err.message
+      );
+
       throw new Error(
-        "Invalid metal price"
+        "Failed to fetch metal price"
       );
     }
-
-    return Number(price);
-
-  } catch (err) {
-
-    console.error(
-      "YAHOO METAL ERROR:",
-      err?.response?.data ||
-        err.message
-    );
-
-    throw new Error(
-      "Failed to fetch metal price"
-    );
   }
-}
 
   // =========================
   // FOREXRATE API
@@ -259,12 +259,12 @@ if (meta.provider === "metal") {
     console.error(
       "FOREXRATE ERROR:",
       err?.response?.data ||
-        err.message
+      err.message
     );
 
     throw new Error(
       err?.response?.data?.message ||
-        "Failed to fetch ForexRate price"
+      "Failed to fetch ForexRate price"
     );
   }
 };
@@ -298,32 +298,26 @@ export const getLivePrice = async (
 
     const now = Date.now();
 
-    const cached = priceCache.get(
-      meta.cacheKey
-    );
+    let price = await fetchRemotePrice(meta);
 
-    let price;
-
-    if (
-      cached &&
-      now - cached.updatedAt < meta.ttl
-    ) {
-      price = cached.price;
-    } else {
-
-      price = await fetchRemotePrice(
-        meta
-      );
-
-      priceCache.set(meta.cacheKey, {
-        price,
-        updatedAt: now,
-        source: meta.provider,
-      });
-    }
+    priceCache.set(meta.cacheKey, {
+      price,
+      updatedAt: now,
+      source: meta.provider,
+    });
 
     await processPendingOrdersBySymbol(
       cleanDisplaySymbol(symbol),
+      price
+    );
+
+    const normalizedOrderSymbol =
+      cleanDisplaySymbol(symbol)
+        .replace("/", "")
+        .toUpperCase();
+
+    await processOpenOrdersBySymbol(
+      normalizedOrderSymbol,
       price
     );
 
@@ -347,7 +341,7 @@ export const getLivePrice = async (
 
     console.error(
       err?.response?.data ||
-        err.message
+      err.message
     );
 
     return res.status(500).json({

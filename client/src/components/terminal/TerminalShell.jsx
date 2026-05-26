@@ -50,6 +50,7 @@ const TerminalShell = () => {
     refreshAll,
     placeOrder,
     closeOrder,
+    placeProtectionUpdate,
     filteredWatchlist,
     openOrders,
     pendingOrders,
@@ -375,6 +376,7 @@ const TerminalShell = () => {
                     }}
                     livePrice={livePrice}
                     closeOrder={closeOrder}
+                    onEditProtection={placeProtectionUpdate}
                     onClose={() => setBottomOpen(false)}
                     accountStats={{
                       balance,
