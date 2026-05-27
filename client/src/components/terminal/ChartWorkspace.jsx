@@ -65,6 +65,55 @@ const ChartWorkspace = memo(
     const widgetRef = useRef(null);
     const containerRef = useRef(null);
     const [loading, setLoading] = useState(true);
+    const getPriceDecimals = () => {
+  const symbol = String(
+    selectedMarket?.displaySymbol ||
+    selectedMarket?.symbol ||
+    ""
+  ).toUpperCase();
+
+  // FOREX
+  if (
+    symbol.includes("EUR") ||
+    symbol.includes("GBP") ||
+    symbol.includes("AUD") ||
+    symbol.includes("NZD") ||
+    symbol.includes("CHF") ||
+    symbol.includes("CAD")
+  ) {
+    return 5;
+  }
+
+  // JPY
+  if (symbol.includes("JPY")) {
+    return 3;
+  }
+
+  // GOLD
+  if (
+    symbol.includes("XAU") ||
+    symbol.includes("GOLD")
+  ) {
+    return 3;
+  }
+
+  // CRYPTO
+  if (
+    symbol.includes("BTC") ||
+    symbol.includes("ETH") ||
+    symbol.includes("USDT")
+  ) {
+    return 2;
+  }
+
+  return 3;
+};
+
+const formatLivePrice = (price) => {
+  return Number(price || 0).toFixed(
+    getPriceDecimals()
+  );
+};
 
     useEffect(() => {
       let mounted = true;
@@ -236,7 +285,7 @@ const ChartWorkspace = memo(
                 transition hover:bg-rose-600
               "
             >
-              Sell {Number(livePrice || 0).toFixed(3)}
+              Sell {formatLivePrice(livePrice)}
             </button>
 
             <button
@@ -247,7 +296,7 @@ const ChartWorkspace = memo(
                 transition hover:bg-blue-600
               "
             >
-              Buy {Number(livePrice || 0).toFixed(3)}
+              Buy {formatLivePrice(livePrice)}
             </button>
           </div>
 
@@ -273,7 +322,7 @@ const ChartWorkspace = memo(
               text-sm font-semibold text-white
             "
           >
-            Sell {Number(livePrice || 0).toFixed(3)}
+            Sell {formatLivePrice(livePrice)}
           </button>
 
           <button
@@ -283,7 +332,7 @@ const ChartWorkspace = memo(
               text-sm font-semibold text-white
             "
           >
-            Buy {Number(livePrice || 0).toFixed(3)}
+            Buy {formatLivePrice(livePrice)}
           </button>
         </div>
 

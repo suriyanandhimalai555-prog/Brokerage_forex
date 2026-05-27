@@ -4,9 +4,8 @@ const PanelButton = ({ active, onClick, children }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`flex-1 rounded px-3 py-2 text-[15px] font-medium transition ${
-      active ? "bg-slate-700 text-white" : "text-slate-300"
-    }`}
+    className={`flex-1 rounded px-3 py-2 text-[15px] font-medium transition ${active ? "bg-slate-700 text-white" : "text-slate-300"
+      }`}
   >
     {children}
   </button>
@@ -33,6 +32,51 @@ const OrderTicketPanel = ({
   onClose,
 }) => {
   const pendingMode = orderKind === "limit";
+  const getPriceDecimals = () => {
+    const symbol = String(currentSymbol || "").toUpperCase();
+
+    // FOREX
+    if (
+      symbol.includes("EUR") ||
+      symbol.includes("GBP") ||
+      symbol.includes("AUD") ||
+      symbol.includes("NZD") ||
+      symbol.includes("CHF") ||
+      symbol.includes("CAD")
+    ) {
+      return 5;
+    }
+
+    // JPY
+    if (symbol.includes("JPY")) {
+      return 3;
+    }
+
+    // GOLD
+    if (
+      symbol.includes("XAU") ||
+      symbol.includes("GOLD")
+    ) {
+      return 3;
+    }
+
+    // BTC / CRYPTO
+    if (
+      symbol.includes("BTC") ||
+      symbol.includes("ETH") ||
+      symbol.includes("USDT")
+    ) {
+      return 2;
+    }
+
+    return 3;
+  };
+
+  const priceDecimals = getPriceDecimals();
+
+  const formatLivePrice = (price) => {
+    return Number(price || 0).toFixed(priceDecimals);
+  };
   const baseButtonClass =
     "rounded-xl px-4 py-4 text-[16px] font-semibold transition disabled:opacity-60";
 
@@ -50,9 +94,15 @@ const OrderTicketPanel = ({
     return next.toFixed(decimals);
   };
 
-  const setPriceFromLive = (setter, decimals = 4) => {
-    if (livePrice !== undefined && livePrice !== null && !Number.isNaN(Number(livePrice))) {
-      setter(Number(livePrice).toFixed(decimals));
+  const setPriceFromLive = (setter) => {
+    if (
+      livePrice !== undefined &&
+      livePrice !== null &&
+      !Number.isNaN(Number(livePrice))
+    ) {
+      setter(
+        Number(livePrice).toFixed(priceDecimals)
+      );
     }
   };
 
@@ -77,22 +127,20 @@ const OrderTicketPanel = ({
           <button
             type="button"
             onClick={() => setTicketMode("one_click")}
-            className={`flex-1 rounded px-3 py-2 text-[15px] font-medium ${
-              ticketMode === "one_click"
+            className={`flex-1 rounded px-3 py-2 text-[15px] font-medium ${ticketMode === "one_click"
                 ? "bg-slate-700 text-white"
                 : "text-slate-300"
-            }`}
+              }`}
           >
             One-click form
           </button>
           <button
             type="button"
             onClick={() => setTicketMode("regular")}
-            className={`flex-1 rounded px-3 py-2 text-[15px] font-medium ${
-              ticketMode === "regular"
+            className={`flex-1 rounded px-3 py-2 text-[15px] font-medium ${ticketMode === "regular"
                 ? "bg-slate-700 text-white"
                 : "text-slate-300"
-            }`}
+              }`}
           >
             Regular form
           </button>
@@ -170,7 +218,11 @@ const OrderTicketPanel = ({
               onChange={(e) => setTriggerPrice(e.target.value)}
               type="text"
               className="w-full rounded-md border border-slate-600/70 bg-[#17232b] px-4 py-3 text-[16px] outline-none"
-              placeholder={livePrice ? livePrice.toFixed(3) : "Enter price"}
+              placeholder={
+                livePrice
+                  ? formatLivePrice(livePrice)
+                  : "Enter price"
+              }
             />
           </div>
         )}
@@ -197,7 +249,7 @@ const OrderTicketPanel = ({
                 />
                 <button
                   type="button"
-                  onClick={() => setPriceFromLive(setTakeProfit, 4)}
+                  onClick={() => setPriceFromLive(setTakeProfit)}
                   className="border-l border-slate-600/70 px-4 py-3 text-[15px] text-slate-300 hover:bg-slate-700"
                 >
                   Price
@@ -245,7 +297,7 @@ const OrderTicketPanel = ({
                 />
                 <button
                   type="button"
-                  onClick={() => setPriceFromLive(setStopLoss, 4)}
+                  onClick={() => setPriceFromLive(setStopLoss)}
                   className="border-l border-slate-600/70 px-4 py-3 text-[15px] text-slate-300 hover:bg-slate-700"
                 >
                   Price
@@ -287,8 +339,8 @@ const OrderTicketPanel = ({
                 <div>Buy</div>
                 <div className="mt-1 text-[13px] font-normal">
                   {livePrice
-  ? Number(livePrice).toFixed(3)
-  : "--"}
+                    ? formatLivePrice(livePrice)
+                    : "--"}
                 </div>
               </button>
 
@@ -301,8 +353,8 @@ const OrderTicketPanel = ({
                 <div>Sell</div>
                 <div className="mt-1 text-[13px] font-normal">
                   {livePrice
-  ? Number(livePrice).toFixed(3)
-  : "--"}
+                    ? formatLivePrice(livePrice)
+                    : "--"}
                 </div>
               </button>
             </>
@@ -316,7 +368,7 @@ const OrderTicketPanel = ({
               >
                 <div>Buy Limit</div>
                 <div className="mt-1 text-[13px] font-normal">
-                  {livePrice ? Number(livePrice).toFixed(3) : "--"}
+                  {livePrice ? formatLivePrice(livePrice) : "--"}
                 </div>
               </button>
 
@@ -328,7 +380,7 @@ const OrderTicketPanel = ({
               >
                 <div>Sell Limit</div>
                 <div className="mt-1 text-[13px] font-normal">
-                  {livePrice ? Number(livePrice).toFixed(3) : "--"}
+                  {livePrice ? formatLivePrice(livePrice) : "--"}
                 </div>
               </button>
 
@@ -340,7 +392,7 @@ const OrderTicketPanel = ({
               >
                 <div>Buy Stop</div>
                 <div className="mt-1 text-[13px] font-normal">
-                  {livePrice ? Number(livePrice).toFixed(3) : "--"}
+                  {livePrice ? formatLivePrice(livePrice) : "--"}
                 </div>
               </button>
 
@@ -352,7 +404,7 @@ const OrderTicketPanel = ({
               >
                 <div>Sell Stop</div>
                 <div className="mt-1 text-[13px] font-normal">
-                  {livePrice ? Number(livePrice).toFixed(3) : "--"}
+                  {livePrice ? formatLivePrice(livePrice) : "--"}
                 </div>
               </button>
             </>
