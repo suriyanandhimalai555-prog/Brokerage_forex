@@ -1,4 +1,5 @@
 import React from "react";
+import { X } from "lucide-react";
 
 const PanelButton = ({ active, onClick, children }) => (
   <button
@@ -107,7 +108,7 @@ const OrderTicketPanel = ({
   };
 
   return (
-    <aside className="flex h-full w-full flex-col overflow-hidden border-l bg-[#111c22] text-slate-100 lg:w-[344px]">
+    <aside className="flex h-full w-full flex-col overflow-hidden md:border-l bg-[#111c22] text-slate-100 lg:w-[344px]">
       <div className="flex items-center gap-2 border-b border-slate-700/60 px-4 py-4">
         <div className="text-[15px] font-semibold">
           {currentSymbol || "XAU/USD"}
@@ -118,7 +119,7 @@ const OrderTicketPanel = ({
           className="ml-auto text-xl leading-none text-slate-300 hover:text-white"
           title="Close panel"
         >
-          ×
+          <X size={16} />
         </button>
       </div>
 

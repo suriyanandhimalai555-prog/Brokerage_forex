@@ -1,12 +1,38 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { DEFAULT_MARKET } from "../../data/terminalData";
+import {
+  BarChart3,
+  LayoutGrid,
+  Briefcase,
+  FileText,
+  Wallet,
+} from "lucide-react";
+
 import { useTradingTerminal } from "../../hooks/useTradingTerminal";
 import TopBar from "./TopBar";
 import InstrumentSidebar from "./InstrumentSidebar";
 import ChartWorkspace from "./ChartWorkspace";
 import OrderTicketPanel from "./OrderTicketPanel";
 import PositionsPanel from "./PositionsPanel";
+
+const MobileTabButton = ({ active, icon: Icon, label, onClick }) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition ${active
+        ? "text-white"
+        : "text-slate-400 hover:text-slate-200"
+        }`}
+    >
+      <Icon size={18} />
+      <span>{label}</span>
+      {active && (
+        <span className="mt-1 h-[3px] w-8 rounded-full bg-white" />
+      )}
+    </button>
+  );
+};
 
 const TerminalShell = () => {
   const terminal = useTradingTerminal();
@@ -62,7 +88,8 @@ const TerminalShell = () => {
   } = terminal;
 
   const [mobileView, setMobileView] = useState("chart");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileAccountsOpen, setMobileAccountsOpen] =
+    useState(false);
 
   useEffect(() => {
     const onFs = () =>
@@ -97,12 +124,32 @@ const TerminalShell = () => {
   const onSelectInstrument = (item) => {
     setSelectedMarket(createMarketObject(item));
     setMobileView("chart");
-    setMobileMenuOpen(false);
   };
 
-  const openMobilePanel = (view) => {
+  const openMobileView = (view) => {
     setMobileView(view);
-    setMobileMenuOpen(false);
+  };
+
+  const openPnL = openOrders.reduce((sum, order) => {
+    const entry = Number(order.open_price || 0);
+    const units = Number(order.units || 0);
+    const side = String(order.type || "").toLowerCase();
+
+    if (side.startsWith("buy")) {
+      return sum + (Number(livePrice || 0) - entry) * units;
+    }
+
+    return sum + (entry - Number(livePrice || 0)) * units;
+  }, 0);
+
+  const accountStats = {
+    balance,
+    equity: Number(balance || 0) + openPnL,
+    floatingPnL: openPnL,
+    marginUsed: openOrders.reduce(
+      (sum, order) => sum + Number(order.margin || 0),
+      0
+    ),
   };
 
   const mobilePanel = (() => {
@@ -113,8 +160,8 @@ const TerminalShell = () => {
           setSearch={setSearch}
           watchlist={filteredWatchlist}
           onSelectInstrument={onSelectInstrument}
-          activeSymbol={selectedMarket.tvSymbol}
-          onClose={() => openMobilePanel("chart")}
+          activeSymbol={selectedMarket?.tvSymbol}
+          onClose={() => setMobileView("chart")}
         />
       );
     }
@@ -131,39 +178,9 @@ const TerminalShell = () => {
           }}
           livePrice={livePrice}
           closeOrder={closeOrder}
-          onClose={() => openMobilePanel("chart")}
-          accountStats={{
-            balance,
-            equity:
-              Number(balance || 0) +
-              openOrders.reduce((sum, order) => {
-                const entry = Number(order.open_price || 0);
-                const units = Number(order.units || 0);
-                const side = String(order.type || "").toLowerCase();
-
-                if (side.startsWith("buy")) {
-                  return sum + (livePrice - entry) * units;
-                }
-
-                return sum + (entry - livePrice) * units;
-              }, 0),
-            floatingPnL: openOrders.reduce((sum, order) => {
-              const entry = Number(order.open_price || 0);
-              const units = Number(order.units || 0);
-              const side = String(order.type || "").toLowerCase();
-
-              if (side.startsWith("buy")) {
-                return sum + (livePrice - entry) * units;
-              }
-
-              return sum + (entry - livePrice) * units;
-            }, 0),
-            marginUsed: openOrders.reduce(
-              (sum, order) =>
-                sum + Number(order.margin || 0),
-              0
-            ),
-          }}
+          onEditProtection={placeProtectionUpdate}
+          onClose={() => setMobileView("chart")}
+          accountStats={accountStats}
         />
       );
     }
@@ -188,7 +205,7 @@ const TerminalShell = () => {
           canTrade={canTrade}
           placeOrder={placeOrder}
           currentSymbol={currentSymbol}
-          onClose={() => openMobilePanel("chart")}
+          onClose={() => setMobileView("chart")}
         />
       );
     }
@@ -200,13 +217,17 @@ const TerminalShell = () => {
         selectedMarket={selectedMarket}
         livePrice={livePrice}
         placeOrder={placeOrder}
+        volume={volume}
+        setVolume={setVolume}
         onToggleFullscreen={async () => {
           try {
             if (!chartRef.current) return;
 
-            if (!document.fullscreenElement)
+            if (!document.fullscreenElement) {
               await chartRef.current.requestFullscreen();
-            else await document.exitFullscreen();
+            } else {
+              await document.exitFullscreen();
+            }
           } catch (err) {
             console.error(err);
             toast.error("Fullscreen not supported");
@@ -220,86 +241,172 @@ const TerminalShell = () => {
 
   return (
     <div
-      className={`min-h-screen ${
-        isDark ? "bg-[#0b1217]" : "bg-slate-50"
-      } text-slate-100`}
+      className={`min-h-screen ${isDark ? "bg-[#0b1217]" : "bg-slate-50"
+        } text-slate-100`}
     >
-      {/* MOBILE */}
+      {/* MOBILE ONLY */}
       <div className="flex min-h-screen flex-col lg:hidden">
-        <TopBar
-          accountSummary={accountSummary}
-          balance={balance}
-          onDeposit={() => toast("Deposit clicked")}
-          onSelectTab={onSelectTopTab}
-          activeTab={selectedMarket}
-          accounts={accounts}
-          activeAccount={activeAccount}
-          switchAccount={switchAccount}
-          onMobileMenuClick={() =>
-            setMobileMenuOpen((prev) => !prev)
-          }
-        />
-
-        <div className="relative flex-1 overflow-hidden">
+        {/* No topbar on mobile */}
+        <div className="relative flex-1 overflow-hidden pb-[76px]">
           {mobilePanel}
         </div>
 
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 top-[68px] z-[60] bg-black/55 backdrop-blur-[2px]">
-            <div className="mx-4 mt-4 overflow-hidden rounded-2xl border border-slate-700 bg-[#111c22] shadow-2xl">
-              <button
-                onClick={() => openMobilePanel("chart")}
-                className={`flex w-full items-center justify-between border-b border-slate-800 px-4 py-4 text-left ${
-                  mobileView === "chart"
-                    ? "bg-[#1d2a31]"
-                    : "hover:bg-[#17232b]"
-                }`}
-              >
-                <span>Graph Page</span>
-                <span className="text-slate-400">→</span>
-              </button>
+        <nav className="fixed bottom-0 left-0 right-0 z-[70] border-t border-slate-700 bg-[#0f171c] pb-[env(safe-area-inset-bottom)]">
+          <div className="grid grid-cols-5">
+            <MobileTabButton
+              active={mobileView === "chart"}
+              icon={BarChart3}
+              label="Graph"
+              onClick={() => openMobileView("chart")}
+            />
+            <MobileTabButton
+              active={mobileView === "instruments"}
+              icon={LayoutGrid}
+              label="Instruments"
+              onClick={() => openMobileView("instruments")}
+            />
+            <MobileTabButton
+              active={mobileView === "positions"}
+              icon={Briefcase}
+              label="Positions"
+              onClick={() => openMobileView("positions")}
+            />
+            <MobileTabButton
+              active={mobileView === "ticket"}
+              icon={FileText}
+              label="Order Ticket"
+              onClick={() => openMobileView("ticket")}
+            />
+            <MobileTabButton
+              active={mobileAccountsOpen}
+              icon={Wallet}
+              label="Accounts"
+              onClick={() =>
+                setMobileAccountsOpen(true)
+              }
+            />
+          </div>
+        </nav>
+        {mobileAccountsOpen && (
+          <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-[2px]">
+            <div
+              className="
+        absolute bottom-0 left-0 right-0
+        rounded-t-[28px]
+        border-t border-slate-700
+        bg-[#111c22]
+        shadow-2xl
+      "
+            >
+              {/* HANDLE */}
 
-              <button
-                onClick={() =>
-                  openMobilePanel("instruments")
-                }
-                className={`flex w-full items-center justify-between border-b border-slate-800 px-4 py-4 text-left ${
-                  mobileView === "instruments"
-                    ? "bg-[#1d2a31]"
-                    : "hover:bg-[#17232b]"
-                }`}
-              >
-                <span>Instruments</span>
-                <span className="text-slate-400">→</span>
-              </button>
+              <div className="flex justify-center py-3">
+                <div className="h-1.5 w-14 rounded-full bg-slate-600" />
+              </div>
 
-              <button
-                onClick={() =>
-                  openMobilePanel("positions")
-                }
-                className={`flex w-full items-center justify-between border-b border-slate-800 px-4 py-4 text-left ${
-                  mobileView === "positions"
-                    ? "bg-[#1d2a31]"
-                    : "hover:bg-[#17232b]"
-                }`}
-              >
-                <span>Order Positions</span>
-                <span className="text-slate-400">→</span>
-              </button>
+              {/* HEADER */}
 
-              <button
-                onClick={() =>
-                  openMobilePanel("ticket")
-                }
-                className={`flex w-full items-center justify-between px-4 py-4 text-left ${
-                  mobileView === "ticket"
-                    ? "bg-[#1d2a31]"
-                    : "hover:bg-[#17232b]"
-                }`}
-              >
-                <span>Order Ticket</span>
-                <span className="text-slate-400">→</span>
-              </button>
+              <div className="flex items-center justify-between px-5 pb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">
+                    Trading Accounts
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    Select active account
+                  </p>
+                </div>
+
+                <button
+                  onClick={() =>
+                    setMobileAccountsOpen(false)
+                  }
+                  className="
+            grid h-10 w-10 place-items-center
+            rounded-full bg-[#17232b]
+            text-slate-300
+          "
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* ACCOUNT LIST */}
+
+              <div className="max-h-[65vh] overflow-y-auto px-4 pb-8">
+                <div className="space-y-3">
+                  {accounts.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-700 bg-[#17232b] px-4 py-10 text-center text-sm text-slate-400">
+                      No accounts found
+                    </div>
+                  ) : (
+                    accounts.map((account) => {
+                      const isActive =
+                        activeAccount?.id === account.id;
+
+                      return (
+                        <button
+                          key={account.id}
+                          onClick={() => {
+                            switchAccount(account.id);
+                            setMobileAccountsOpen(false);
+                          }}
+                          className={`
+                    w-full rounded-2xl border px-4 py-4 text-left transition
+                    ${isActive
+                              ? "border-blue-500 bg-[#1d2a31]"
+                              : "border-slate-700 bg-[#17232b]"
+                            }
+                  `}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`
+                            rounded-sm px-2 py-[2px]
+                            text-[10px] font-bold
+                            ${account.account_type === "demo"
+                                      ? "bg-sky-500 text-white"
+                                      : "bg-lime-300 text-black"
+                                    }
+                          `}
+                                >
+                                  {account.account_type === "demo"
+                                    ? "Demo"
+                                    : "Real"}
+                                </span>
+
+                                <span className="font-medium text-white">
+                                  {account.platform || "Standard"}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 text-sm text-slate-400">
+                                #
+                                {account.account_no ||
+                                  account.id}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-lg font-semibold text-white">
+                                {Number(
+                                  account.balance || 0
+                                ).toFixed(2)}
+                              </div>
+
+                              <div className="text-xs text-slate-400">
+                                {account.currency || "USD"}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -325,7 +432,7 @@ const TerminalShell = () => {
               setSearch={setSearch}
               watchlist={filteredWatchlist}
               onSelectInstrument={onSelectInstrument}
-              activeSymbol={selectedMarket.tvSymbol}
+              activeSymbol={selectedMarket?.tvSymbol}
               onClose={() => setLeftOpen(false)}
             />
           ) : (
@@ -351,10 +458,11 @@ const TerminalShell = () => {
                       try {
                         if (!chartRef.current) return;
 
-                        if (!document.fullscreenElement)
+                        if (!document.fullscreenElement) {
                           await chartRef.current.requestFullscreen();
-                        else
+                        } else {
                           await document.exitFullscreen();
+                        }
                       } catch (err) {
                         console.error(err);
                         toast.error("Fullscreen not supported");
@@ -378,57 +486,7 @@ const TerminalShell = () => {
                     closeOrder={closeOrder}
                     onEditProtection={placeProtectionUpdate}
                     onClose={() => setBottomOpen(false)}
-                    accountStats={{
-                      balance,
-                      equity:
-                        Number(balance || 0) +
-                        openOrders.reduce((sum, order) => {
-                          const entry = Number(
-                            order.open_price || 0
-                          );
-
-                          const units = Number(
-                            order.units || 0
-                          );
-
-                          const side = String(
-                            order.type || ""
-                          ).toLowerCase();
-
-                          if (side.startsWith("buy")) {
-                            return sum + (livePrice - entry) * units;
-                          }
-
-                          return sum + (entry - livePrice) * units;
-                        }, 0),
-
-                      floatingPnL:
-                        openOrders.reduce((sum, order) => {
-                          const entry = Number(
-                            order.open_price || 0
-                          );
-
-                          const units = Number(
-                            order.units || 0
-                          );
-
-                          const side = String(
-                            order.type || ""
-                          ).toLowerCase();
-
-                          if (side.startsWith("buy")) {
-                            return sum + (livePrice - entry) * units;
-                          }
-
-                          return sum + (entry - livePrice) * units;
-                        }, 0),
-
-                      marginUsed: openOrders.reduce(
-                        (sum, order) =>
-                          sum + Number(order.margin || 0),
-                        0
-                      ),
-                    }}
+                    accountStats={accountStats}
                   />
                 ) : (
                   <div className="flex items-center justify-center border-t border-slate-700/60 bg-[#10181d] py-2">

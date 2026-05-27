@@ -61,59 +61,73 @@ const ChartWorkspace = memo(
     onToggleFullscreen,
     isFullscreen,
     placeOrder,
+    volume,
+    setVolume,
   }) => {
     const widgetRef = useRef(null);
     const containerRef = useRef(null);
     const [loading, setLoading] = useState(true);
     const getPriceDecimals = () => {
-  const symbol = String(
-    selectedMarket?.displaySymbol ||
-    selectedMarket?.symbol ||
-    ""
-  ).toUpperCase();
+      const symbol = String(
+        selectedMarket?.displaySymbol ||
+        selectedMarket?.symbol ||
+        ""
+      ).toUpperCase();
 
-  // FOREX
-  if (
-    symbol.includes("EUR") ||
-    symbol.includes("GBP") ||
-    symbol.includes("AUD") ||
-    symbol.includes("NZD") ||
-    symbol.includes("CHF") ||
-    symbol.includes("CAD")
-  ) {
-    return 5;
-  }
+      // FOREX
+      if (
+        symbol.includes("EUR") ||
+        symbol.includes("GBP") ||
+        symbol.includes("AUD") ||
+        symbol.includes("NZD") ||
+        symbol.includes("CHF") ||
+        symbol.includes("CAD")
+      ) {
+        return 5;
+      }
 
-  // JPY
-  if (symbol.includes("JPY")) {
-    return 3;
-  }
+      // JPY
+      if (symbol.includes("JPY")) {
+        return 3;
+      }
 
-  // GOLD
-  if (
-    symbol.includes("XAU") ||
-    symbol.includes("GOLD")
-  ) {
-    return 3;
-  }
+      // GOLD
+      if (
+        symbol.includes("XAU") ||
+        symbol.includes("GOLD")
+      ) {
+        return 3;
+      }
 
-  // CRYPTO
-  if (
-    symbol.includes("BTC") ||
-    symbol.includes("ETH") ||
-    symbol.includes("USDT")
-  ) {
-    return 2;
-  }
+      // CRYPTO
+      if (
+        symbol.includes("BTC") ||
+        symbol.includes("ETH") ||
+        symbol.includes("USDT")
+      ) {
+        return 2;
+      }
 
-  return 3;
-};
+      return 3;
+    };
 
-const formatLivePrice = (price) => {
-  return Number(price || 0).toFixed(
-    getPriceDecimals()
-  );
-};
+    const formatLivePrice = (price) => {
+      return Number(price || 0).toFixed(
+        getPriceDecimals()
+      );
+    };
+
+    const updateVolume = (type) => {
+      const current = Number(volume || 0.01);
+
+      if (type === "plus") {
+        setVolume((current + 0.01).toFixed(2));
+      } else {
+        setVolume(
+          Math.max(0.01, current - 0.01).toFixed(2)
+        );
+      }
+    };
 
     useEffect(() => {
       let mounted = true;
@@ -313,27 +327,102 @@ const formatLivePrice = (price) => {
         </div>
 
         {/* MOBILE BUY SELL */}
+        <div className="border-b border-slate-700 bg-[#0f171c] p-[2px] md:hidden">
+          <div className="grid grid-cols-[1fr_82px_1fr] overflow-hidden rounded-sm">
+            {/* SELL */}
 
-        <div className="grid grid-cols-2 gap-2 border-b border-slate-700 bg-[#10181d] p-2 md:hidden">
-          <button
-            onClick={() => placeOrder("sell")}
-            className="
-              rounded bg-rose-500 py-3
-              text-sm font-semibold text-white
-            "
-          >
-            Sell {formatLivePrice(livePrice)}
-          </button>
+            <button
+              onClick={() => placeOrder("sell")}
+              className="
+        flex flex-col items-start
+        bg-rose-500
+        px-2 py-1
+        text-white
+      "
+            >
+              <span className="text-[10px] font-semibold uppercase opacity-90">
+                Sell
+              </span>
 
-          <button
-            onClick={() => placeOrder("buy")}
-            className="
-              rounded bg-blue-500 py-3
-              text-sm font-semibold text-white
-            "
-          >
-            Buy {formatLivePrice(livePrice)}
-          </button>
+              <span className="mt-[1px] text-[24px] font-bold leading-none">
+                {formatLivePrice(livePrice)}
+              </span>
+            </button>
+
+            {/* LOT SIZE */}
+
+            <div className="flex items-center bg-[#111c22] text-white">
+              <button
+                onClick={() => updateVolume("minus")}
+                className="
+          flex h-full w-6 items-center
+          justify-center
+          text-[15px]
+          text-slate-300
+          active:bg-slate-700
+        "
+              >
+                ˅
+              </button>
+
+              <input
+                value={volume}
+                onChange={(e) => {
+                  const value = e.target.value;
+
+                  if (
+                    value === "" ||
+                    Number(value) >= 0
+                  ) {
+                    setVolume(value);
+                  }
+                }}
+                type="number"
+                step="0.01"
+                min="0.01"
+                className="
+          w-full bg-transparent
+          text-center text-[14px]
+          font-medium text-white
+          outline-none
+          [appearance:textfield]
+        "
+              />
+
+              <button
+                onClick={() => updateVolume("plus")}
+                className="
+          flex h-full w-6 items-center
+          justify-center
+          text-[15px]
+          text-slate-300
+          active:bg-slate-700
+        "
+              >
+                ˄
+              </button>
+            </div>
+
+            {/* BUY */}
+
+            <button
+              onClick={() => placeOrder("buy")}
+              className="
+        flex flex-col items-end
+        bg-blue-500
+        px-2 py-1
+        text-white
+      "
+            >
+              <span className="text-[10px] font-semibold uppercase opacity-90">
+                Buy
+              </span>
+
+              <span className="mt-[1px] text-[24px] font-bold leading-none">
+                {formatLivePrice(livePrice)}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* CHART */}

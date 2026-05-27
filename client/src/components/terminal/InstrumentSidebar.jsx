@@ -19,7 +19,7 @@ const InstrumentSidebar = ({
   onClose,
 }) => {
   return (
-    <aside className="flex h-full w-full flex-col overflow-hidden border-r lg:w-[300px]">
+    <aside className="flex h-full w-full flex-col overflow-hidden md:border-r lg:w-[300px]">
       {/* HEADER */}
 
       <div className="shrink-0">
@@ -101,10 +101,9 @@ const InstrumentSidebar = ({
                   grid w-full grid-cols-[1fr_72px_70px]
                   items-center rounded-md px-3 py-3
                   text-left text-[15px] transition
-                  ${
-                    active
-                      ? "bg-[#1d2a31]"
-                      : "hover:bg-[#18242b]"
+                  ${active
+                    ? "bg-[#1d2a31]"
+                    : "hover:bg-[#18242b]"
                   }
                 `}
               >
@@ -133,10 +132,9 @@ const InstrumentSidebar = ({
                 <div
                   className={`
                     text-right font-medium
-                    ${
-                      active
-                        ? "text-emerald-400"
-                        : "text-slate-100"
+                    ${active
+                      ? "text-emerald-400"
+                      : "text-slate-100"
                     }
                   `}
                 >
