@@ -50,18 +50,12 @@ import PublicRoute from "./components/PublicRoute";
 
 import TradingTerminal from "./pages/TradingTerminal";
 import PaymentCheckout from "./pages/PaymentCheckout";
+import Website from "./pages/Website";
 
 const App = () => {
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          <PublicRoute>
-            <Navigate to="/login" replace />
-          </PublicRoute>
-        }
-      />
+      <Route path="/" element={<Website />} />
 
       <Route
         path="/login"
