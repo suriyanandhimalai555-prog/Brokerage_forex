@@ -333,7 +333,7 @@ const Website = () => {
       {/* Footer */}
       <footer id="contact" className="border-t border-white/10 bg-slate-950">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-4">
+          <div className="grid gap-12 lg:grid-cols-3">
             <div className="lg:col-span-1">
               <h2 className="text-2xl font-extrabold flex items-center gap-1">
                 <img src={Logo} width={40} alt="logo" />
@@ -381,46 +381,7 @@ const Website = () => {
               </ul>
             </div>
 
-            <div>
-              <h3 className="text-lg font-semibold">Contact</h3>
-              <div className="mt-4 space-y-4 text-slate-300">
-                <p className="flex items-center gap-3">
-                  <FaRegEnvelope className="text-blue-300" />
-                  support@forexpro.com
-                </p>
-                <p className="flex items-center gap-3">
-                  <FaPhoneAlt className="text-blue-300" />
-                  +91 90000 00000
-                </p>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href="#"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-blue-400 hover:bg-blue-500/10"
-                >
-                  <FaFacebookF />
-                </a>
-                <a
-                  href="#"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-blue-400 hover:bg-blue-500/10"
-                >
-                  <FaInstagram />
-                </a>
-                <a
-                  href="#"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-blue-400 hover:bg-blue-500/10"
-                >
-                  <FaLinkedinIn />
-                </a>
-                <a
-                  href="#"
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-blue-400 hover:bg-blue-500/10"
-                >
-                  <FaTwitter />
-                </a>
-              </div>
-            </div>
+            
           </div>
 
           <div className="mt-12 border-t border-white/10 pt-6 text-center text-sm text-slate-400">
