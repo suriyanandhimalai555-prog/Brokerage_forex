@@ -1,4 +1,4 @@
-name: Deploy Brokerage Forex
+name: Brokerage Forex Auto Deploy
 
 on:
   push:
@@ -10,17 +10,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Source
+        uses: actions/checkout@v4
 
-      - name: Deploy to VPS
+      - name: Deploy to Contabo VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
+
           script: |
+            set -e
+
+            echo "Connecting to VPS..."
+
             cd /root/otp/apps/Brokerage_forex
+
+            echo "Pulling latest code..."
             git pull origin main
+
+            echo "Stopping old containers..."
+            docker compose down
+
+            echo "Building latest images..."
             docker compose build --no-cache
+
+            echo "Starting containers..."
             docker compose up -d
+
+            echo "Cleaning unused images..."
             docker image prune -af
+
+            echo "Deployment Completed Successfully!"
