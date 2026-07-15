@@ -23,7 +23,7 @@ const menu = [
                 path: "/user/performance",
             },
             {
-                name: "History of Orders",
+                name: "History of Order",
                 icon: History,
                 path: "/user/order-history",
             },
