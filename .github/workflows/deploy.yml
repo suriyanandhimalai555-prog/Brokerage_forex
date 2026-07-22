@@ -7,6 +7,7 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to Contabo VPS
     runs-on: ubuntu-latest
 
     steps:
@@ -19,11 +20,21 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 20m
+          debug: true
 
           script: |
             set -e
 
-            echo "Connecting to VPS..."
+            echo "========================================"
+            echo "Connected to Contabo VPS"
+            echo "========================================"
+
+            whoami
+            hostname
+            pwd
 
             cd /root/otp/apps/Brokerage_forex
 
@@ -39,7 +50,119 @@ jobs:
             echo "Starting containers..."
             docker compose up -d
 
-            echo "Cleaning unused images..."
+            echo "Removing unused Docker images..."
             docker image prune -af
 
-            echo "Deployment Completed Successfully!"
+            echo "Container Status"
+            docker compose ps
+
+            echo "Running Containers"
+            docker ps
+
+            echo "Deployment Completed Successfully"
+
+      - name: Send Success Email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          secure: true
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+
+          subject: "✅ Brokerage Forex Deployment Successful"
+
+          to: |
+            Sanjayvanan03@gmail.com,
+            muthukdm45@gmail.com,
+            deepakavgprimetech@gmail.com
+
+          from: Deepak CI/CD <deepakavgprimetech@gmail.com>
+
+          html_body: |
+            <h2>✅ Brokerage Forex Deployment Successful</h2>
+
+            <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+              <tr>
+                <td><b>Repository</b></td>
+                <td>${{ github.repository }}</td>
+              </tr>
+              <tr>
+                <td><b>Branch</b></td>
+                <td>${{ github.ref_name }}</td>
+              </tr>
+              <tr>
+                <td><b>Commit ID</b></td>
+                <td>${{ github.sha }}</td>
+              </tr>
+              <tr>
+                <td><b>Developer</b></td>
+                <td>${{ github.actor }}</td>
+              </tr>
+              <tr>
+                <td><b>Workflow</b></td>
+                <td>${{ github.workflow }}</td>
+              </tr>
+              <tr>
+                <td><b>Status</b></td>
+                <td><b>Deployment Successful ✅</b></td>
+              </tr>
+            </table>
+
+            <br>
+
+            <b>The latest version of Brokerage Forex has been deployed successfully to the Contabo VPS.</b>
+
+      - name: Send Failure Email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          secure: true
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+
+          subject: "❌ Brokerage Forex Deployment Failed"
+
+          to: |
+            Sanjayvanan03@gmail.com,
+            muthukdm45@gmail.com,
+            deepakavgprimetech@gmail.com
+
+          from: Deepak CI/CD <deepakavgprimetech@gmail.com>
+
+          html_body: |
+            <h2>❌ Brokerage Forex Deployment Failed</h2>
+
+            <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+              <tr>
+                <td><b>Repository</b></td>
+                <td>${{ github.repository }}</td>
+              </tr>
+              <tr>
+                <td><b>Branch</b></td>
+                <td>${{ github.ref_name }}</td>
+              </tr>
+              <tr>
+                <td><b>Commit ID</b></td>
+                <td>${{ github.sha }}</td>
+              </tr>
+              <tr>
+                <td><b>Developer</b></td>
+                <td>${{ github.actor }}</td>
+              </tr>
+              <tr>
+                <td><b>Workflow</b></td>
+                <td>${{ github.workflow }}</td>
+              </tr>
+              <tr>
+                <td><b>Status</b></td>
+                <td><b>Deployment Failed ❌</b></td>
+              </tr>
+            </table>
+
+            <br>
+
+            <b>Please check the GitHub Actions logs for the complete error details.</b>
