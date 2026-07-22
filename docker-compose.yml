@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+
+  frontend:
+    build:
+      context: ./client
+    container_name: brokerage-frontend
+    restart: always
+
+    ports:
+      - "3015:80"
+
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./server
+
+    container_name: brokerage-backend
+
+    restart: always
+
+    env_file:
+      - ./server/.env
+
+    ports:
+      - "4030:4030"
+
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+
+    container_name: brokerage-postgres
+
+    restart: always
+
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: AVG_Forex
+
+    volumes:
+      - brokerage_postgres:/var/lib/postgresql/data
+
+volumes:
+    brokerage_postgres:

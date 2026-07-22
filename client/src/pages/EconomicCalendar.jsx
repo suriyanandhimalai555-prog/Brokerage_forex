@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 
+const CALENDAR_URL = "https://www.exness.com/calendar/";
+
 const EconomicCalendar = () => {
   const [loading, setLoading] = useState(true);
 
   return (
     <div className="flex flex-col h-full space-y-6 bg-white p-6 rounded-2xl shadow-sm">
-      
       {/* HEADER */}
       <div className="flex flex-col gap-1 border-b pb-4">
         <h1 className="text-2xl font-semibold text-gray-900">
           Economic Calendar
         </h1>
+
         <p className="text-sm text-gray-500">
           Track global economic events and market impact
         </p>
@@ -26,16 +28,16 @@ const EconomicCalendar = () => {
           </span>
 
           <a
-            href="https://www.exness.com/embeds/tools/calendar/"
+            href={CALENDAR_URL}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="text-xs text-blue-600 hover:underline"
           >
             Open full view ↗
           </a>
         </div>
 
-        {/* LOADING OVERLAY */}
+        {/* LOADING */}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
             <div className="animate-pulse text-sm text-gray-500">
@@ -46,7 +48,7 @@ const EconomicCalendar = () => {
 
         {/* IFRAME */}
         <iframe
-          src="https://www.exness.com/embeds/tools/calendar/"
+          src={CALENDAR_URL}
           title="Economic Calendar"
           className="w-full h-[80vh]"
           frameBorder="0"

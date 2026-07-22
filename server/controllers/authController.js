@@ -68,8 +68,16 @@ export const registerUser = async (req, res) => {
       token,
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
+  console.error("========== REGISTER ERROR ==========");
+  console.error(error);
+  console.error("====================================");
+
+  return res.status(500).json({
+    success: false,
+    message: error.message,
+    stack: error.stack,
+  });
+}
 };
 
 export const loginUser = async (req, res) => {
