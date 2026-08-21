@@ -15,6 +15,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const getToken = () => localStorage.getItem("token");
 
 const MyAccount = () => {
@@ -24,9 +25,8 @@ const MyAccount = () => {
   const [tab, setTab] = useState("real");
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState("Newest");
-  const [showArchived, setShowArchived] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
-
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -42,19 +42,51 @@ const MyAccount = () => {
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API_URL}/api/accounts/me`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      setAccounts(data?.accounts || []);
+
+      const token = getToken();
+
+      const config = {
+        withCredentials: true,
+      };
+
+      if (token) {
+        config.headers = {
+          Authorization: `Bearer ${token}`,
+        };
+      }
+
+      const { data } = await axios.get(
+        `${API_URL}/api/accounts/me`,
+        config
+      );
+
+      setAccounts(Array.isArray(data?.accounts) ? data.accounts : []);
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to load accounts");
+      console.error(
+        "Failed to load accounts:",
+        error?.response?.data || error.message
+      );
+
+      if (error?.response?.status === 401) {
+        localStorage.removeItem("token");
+        setAccounts([]);
+        toast.error("Session expired. Please login again.");
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      toast.error(
+        error?.response?.data?.message || "Failed to load accounts"
+      );
     } finally {
       setLoading(false);
     }
@@ -65,19 +97,36 @@ const MyAccount = () => {
   }, []);
 
   const filteredAccounts = useMemo(() => {
-    const list = accounts.filter((acc) => acc.account_type === tab);
+    const list = accounts.filter(
+      (acc) =>
+        acc.account_type?.toLowerCase() === tab &&
+        acc.status !== "archived"
+    );
 
-    const sorted = [...list].sort((a, b) => {
-      if (sort === "Oldest") return new Date(a.created_at) - new Date(b.created_at);
-      if (sort === "Balance") return Number(b.balance) - Number(a.balance);
-      if (sort === "Nickname") return String(a.nickname).localeCompare(String(b.nickname));
-      return new Date(b.created_at) - new Date(a.created_at);
+    return [...list].sort((a, b) => {
+      if (sort === "Oldest") {
+        return (
+          new Date(a.created_at || 0) -
+          new Date(b.created_at || 0)
+        );
+      }
+
+      if (sort === "Balance") {
+        return Number(b.balance || 0) - Number(a.balance || 0);
+      }
+
+      if (sort === "Nickname") {
+        return String(a.nickname || "").localeCompare(
+          String(b.nickname || "")
+        );
+      }
+
+      return (
+        new Date(b.created_at || 0) -
+        new Date(a.created_at || 0)
+      );
     });
-
-    return sorted;
   }, [accounts, tab, sort]);
-
-  const hasAccounts = filteredAccounts.length > 0;
 
   const archivedAccounts = useMemo(() => {
     return accounts.filter((acc) => acc.status === "archived");
@@ -86,89 +135,170 @@ const MyAccount = () => {
   const updateStatus = async (id, action) => {
     try {
       setSavingId(id);
+
+      const token = getToken();
+
+      const config = {
+        withCredentials: true,
+      };
+
+      if (token) {
+        config.headers = {
+          Authorization: `Bearer ${token}`,
+        };
+      }
+
       await axios.patch(
         `${API_URL}/api/accounts/${id}/${action}`,
         {},
-        {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }
+        config
       );
-      toast.success(action === "archive" ? "Account archived" : "Account restored");
-      fetchAccounts();
+
+      toast.success(
+        action === "archive"
+          ? "Account archived"
+          : "Account restored"
+      );
+
+      setActiveMenu(null);
+      await fetchAccounts();
     } catch (error) {
-      console.error(error);
-      toast.error("Action failed");
+      console.error(
+        "Account status error:",
+        error?.response?.data || error.message
+      );
+
+      if (error?.response?.status === 401) {
+        localStorage.removeItem("token");
+        toast.error("Session expired. Please login again.");
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      toast.error(
+        error?.response?.data?.message || "Action failed"
+      );
     } finally {
       setSavingId(null);
     }
   };
 
-  const openPayLink = (url) => {
-    if (!url) {
-      toast.error("Payment link not found");
-      return;
+  const openPayment = (acc) => {
+    navigate("/user/payment", {
+      state: {
+        account: acc,
+        payment: {
+          address: acc.payment_url,
+          qrCode:
+            acc.payment_raw?.qr_code ||
+            acc.payment_raw?.data?.qr_code ||
+            null,
+          payAmount:
+            acc.payment_raw?.pay_amount ||
+            acc.initial_balance,
+          amount: acc.initial_balance,
+          payCurrency:
+            acc.payment_raw?.pay_currency || "USDT",
+          network:
+            acc.payment_raw?.network || "TRC20",
+        },
+      },
+    });
+  };
+
+  const openTrade = () => {
+    window.open("/terminal", "_blank");
+  };
+
+  const getStatusClass = (status) => {
+    if (status === "active") {
+      return "bg-green-100 text-green-700";
     }
 
-    window.open(url, "_blank");
+    if (status === "pending_payment") {
+      return "bg-yellow-100 text-yellow-700";
+    }
+
+    if (status === "archived") {
+      return "bg-gray-200 text-gray-700";
+    }
+
+    return "bg-red-100 text-red-700";
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm space-y-6 p-4 sm:p-8">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b pb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold">My accounts</h1>
+    <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-6">
+        <h1 className="text-xl sm:text-2xl font-semibold">
+          My accounts
+        </h1>
 
         <button
           onClick={() => navigate("/user/open-account")}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg text-sm"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg text-sm font-medium"
         >
-          <Plus size={16} />
+          <Plus size={17} />
           Open account
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex bg-gray-100 p-1 rounded-lg w-fit">
           <button
             onClick={() => setTab("real")}
-            className={`px-4 py-1.5 text-sm rounded-md ${tab === "real" ? "bg-white shadow" : "text-gray-500"
-              }`}
+            className={`px-5 py-2 text-sm rounded-md ${
+              tab === "real"
+                ? "bg-white shadow text-gray-900"
+                : "text-gray-500"
+            }`}
           >
             Real
           </button>
+
           <button
             onClick={() => setTab("demo")}
-            className={`px-4 py-1.5 text-sm rounded-md ${tab === "demo" ? "bg-white shadow" : "text-gray-500"
-              }`}
+            className={`px-5 py-2 text-sm rounded-md ${
+              tab === "demo"
+                ? "bg-white shadow text-gray-900"
+                : "text-gray-500"
+            }`}
           >
             Demo
           </button>
         </div>
 
-        <div className="relative w-full sm:w-auto" ref={menuRef}>
+        <div
+          className="relative w-full sm:w-auto"
+          ref={menuRef}
+        >
           <button
-            onClick={() => setSortOpen(!sortOpen)}
-            className="flex items-center justify-between gap-2 w-full sm:w-auto px-3 py-2 border rounded-lg text-sm"
+            onClick={() => setSortOpen((value) => !value)}
+            className="flex items-center justify-between gap-3 w-full sm:w-auto px-4 py-2.5 border rounded-lg text-sm bg-white"
           >
             <span className="flex items-center gap-2">
-              <ArrowUpDown size={14} />
+              <ArrowUpDown size={15} />
               {sort}
             </span>
-            <ChevronDown size={14} />
+
+            <ChevronDown
+              size={15}
+              className={sortOpen ? "rotate-180" : ""}
+            />
           </button>
 
           {sortOpen && (
-            <div className="absolute right-0 mt-2 w-full sm:w-44 bg-white border rounded-lg shadow z-10">
-              {sortOptions.map((opt) => (
-                <div
-                  key={opt}
+            <div className="absolute right-0 top-full mt-2 w-full sm:w-44 bg-white border rounded-lg shadow-lg z-50 overflow-hidden">
+              {sortOptions.map((option) => (
+                <button
+                  key={option}
                   onClick={() => {
-                    setSort(opt);
+                    setSort(option);
                     setSortOpen(false);
                   }}
-                  className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100"
                 >
-                  {opt}
-                </div>
+                  {option}
+                </button>
               ))}
             </div>
           )}
@@ -177,287 +307,296 @@ const MyAccount = () => {
 
       {loading ? (
         <div className="py-16 flex justify-center">
-          <Loader2 className="animate-spin" />
+          <Loader2
+            className="animate-spin text-blue-500"
+            size={28}
+          />
+        </div>
+      ) : filteredAccounts.length === 0 ? (
+        <div className="border border-dashed border-gray-300 rounded-2xl p-10 bg-gray-50 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white flex items-center justify-center mb-4 shadow-lg">
+            <Plus size={28} />
+          </div>
+
+          <h2 className="text-xl font-semibold text-gray-800">
+            No {tab} accounts found
+          </h2>
+
+          <p className="text-sm text-gray-500 mt-2 max-w-md">
+            You don't have any {tab} trading accounts yet.
+            Create your first {tab} account to start trading.
+          </p>
+
+          <button
+            onClick={() => navigate("/user/open-account")}
+            className="mt-6 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl shadow"
+          >
+            <Plus size={18} />
+            Create account
+          </button>
         </div>
       ) : (
-        <>
-          <div className="space-y-4">
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[1100px] text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  Account
+                </th>
 
-            {!hasAccounts ? (
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  Platform
+                </th>
 
-              <div className="border border-dashed border-gray-300 rounded-2xl p-10 bg-gray-50 flex flex-col items-center justify-center text-center">
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  Plan
+                </th>
 
-                <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white flex items-center justify-center mb-4 shadow-lg">
-                  <Plus size={28} />
-                </div>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  Type
+                </th>
 
-                <h2 className="text-xl font-semibold text-gray-800">
-                  No {tab} accounts found
-                </h2>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  Balance
+                </th>
 
-                <p className="text-sm text-gray-500 mt-2 max-w-md">
-                  You don't have any {tab} trading accounts yet.
-                  Create your first {tab} account to start trading.
-                </p>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  Status
+                </th>
 
-                <button
-                  onClick={() => navigate("/user/open-account")}
-                  className="mt-6 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl shadow hover:shadow-lg transition"
-                >
-                  <Plus size={18} />
-                  Create account
-                </button>
-              </div>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">
+                  Actions
+                </th>
+              </tr>
+            </thead>
 
-            ) : (
-
-              filteredAccounts.map((acc) => (
-                <div
+            <tbody className="divide-y">
+              {filteredAccounts.map((acc) => (
+                <tr
                   key={acc.id}
-                  className="border rounded-xl p-4 sm:p-5 bg-white space-y-4"
+                  className="hover:bg-gray-50 whitespace-nowrap"
                 >
+                  <td className="px-4 py-4 font-medium">
+                    #{acc.account_no || "-"}
+                  </td>
 
-                  <div className="flex justify-between items-start gap-4">
+                  <td className="px-4 py-4">
+                    {acc.platform || "-"}
+                  </td>
 
-                    <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+                  <td className="px-4 py-4">
+                    {acc.plan_name || "-"}
+                  </td>
 
-                      <span className="px-2 py-0.5 bg-gray-100 rounded-full capitalize">
-                        {acc.account_type}
-                      </span>
+                  <td className="px-4 py-4 capitalize">
+                    {acc.account_type || "-"}
+                  </td>
 
-                      <span className="px-2 py-0.5 bg-gray-100 rounded-full">
-                        {acc.platform}
-                      </span>
+                  <td className="px-4 py-4 font-semibold">
+                    {Number(acc.balance || 0).toFixed(2)}{" "}
+                    <span className="text-gray-500 font-normal">
+                      {acc.currency || "USD"}
+                    </span>
+                  </td>
 
-                      <span className="px-2 py-0.5 bg-gray-100 rounded-full">
-                        {acc.plan_name}
-                      </span>
+                  <td className="px-4 py-4">
+                    <span
+                      className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${getStatusClass(
+                        acc.status
+                      )}`}
+                    >
+                      {acc.status || "unknown"}
+                    </span>
+                  </td>
 
-                      <span className="font-medium">
-                        #{acc.account_no}
-                      </span>
-
-                      <span
-                        className={`px-2 py-0.5 rounded-full ${acc.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : acc.status === "pending_payment"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : acc.status === "archived"
-                              ? "bg-gray-200 text-gray-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
+                  <td className="px-4 py-4">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={openTrade}
+                        className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg text-xs font-medium"
                       >
-                        {acc.status}
-                      </span>
-                    </div>
-
-                    <div className="relative">
+                        Trade
+                      </button>
 
                       <button
                         onClick={() =>
-                          setActiveMenu(
-                            activeMenu === acc.id ? null : acc.id
-                          )
+                          navigate("/user/deposit", {
+                            state: { account: acc },
+                          })
                         }
-                        className="p-2 bg-gray-100 rounded-lg"
+                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                        title="Deposit"
                       >
-                        <MoreVertical size={16} />
+                        <ArrowDownCircle size={16} />
                       </button>
 
-                      {activeMenu === acc.id && (
-                        <div className="absolute right-0 top-full mt-2 w-52 bg-white border rounded-lg shadow-lg z-50 overflow-hidden">
+                      <button
+                        onClick={() =>
+                          navigate("/user/withdraw")
+                        }
+                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                        title="Withdraw"
+                      >
+                        <ArrowUpCircle size={16} />
+                      </button>
 
-                          <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
-                            Account info
-                          </button>
+                      <button
+                        onClick={() =>
+                          navigate("/user/transfer")
+                        }
+                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                        title="Transfer"
+                      >
+                        <Repeat size={16} />
+                      </button>
 
-                          {acc.status === "pending_payment" && (
-                            <button
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
+                      <div className="relative">
+                        <button
+                          onClick={() =>
+                            setActiveMenu(
+                              activeMenu === acc.id
+                                ? null
+                                : acc.id
+                            )
+                          }
+                          className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
 
-                                navigate("/user/payment", {
-                                  state: {
-                                    account: acc,
-                                    payment: {
-                                      address: acc.payment_url,
-                                      qrCode:
-                                        acc.payment_raw?.qr_code ||
-                                        acc.payment_raw?.data?.qr_code ||
-                                        null,
-                                      payAmount:
-                                        acc.payment_raw?.pay_amount ||
-                                        acc.initial_balance,
-                                      amount: acc.initial_balance,
-                                      payCurrency:
-                                        acc.payment_raw?.pay_currency ||
-                                        "USDT",
-                                      network:
-                                        acc.payment_raw?.network ||
-                                        "TRC20",
-                                    },
-                                  },
-                                });
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <ExternalLink size={14} />
-                              Continue payment
-                            </button>
-                          )}
+                        {activeMenu === acc.id && (
+                          <div className="absolute right-0 top-full mt-2 w-48 bg-white border rounded-lg shadow-xl z-50 overflow-hidden">
+                            {acc.status === "pending_payment" && (
+                              <button
+                                onClick={() => openPayment(acc)}
+                                className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <ExternalLink size={14} />
+                                Continue payment
+                              </button>
+                            )}
 
-                          {acc.status !== "archived" ? (
                             <button
                               onClick={() =>
-                                updateStatus(acc.id, "archive")
+                                updateStatus(
+                                  acc.id,
+                                  "archive"
+                                )
                               }
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                              disabled={savingId === acc.id}
+                              className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                             >
                               {savingId === acc.id
                                 ? "Archiving..."
                                 : "Archive"}
                             </button>
-                          ) : (
-                            <button
-                              onClick={() =>
-                                updateStatus(acc.id, "restore")
-                              }
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                            >
-                              Restore
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-2xl sm:text-3xl font-semibold">
-                    {Number(acc.balance).toFixed(2)}
-
-                    <span className="text-sm text-gray-500 ml-1">
-                      {acc.currency}
-                    </span>
-                  </div>
-
-                  {acc.status === "pending_payment" && (
-                    <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-900">
-                      Payment pending. Complete payment
-                      to activate this account.
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex gap-2">
-
-                    <button
-                      onClick={() =>
-                        window.open("/terminal", "_blank")
-                      }
-                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-2.5 rounded-lg font-medium"
-                    >
-                      Trade
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        navigate("/user/deposit", {
-                          state: { account: acc },
-                        })
-                      }
-                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-100 rounded-lg text-sm"
-                    >
-                      <ArrowDownCircle size={16} />
-                      Deposit
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        navigate("/user/withdraw")
-                      }
-                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-100 rounded-lg text-sm"
-                    >
-                      <ArrowUpCircle size={16} />
-                      Withdraw
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        navigate("/user/transfer")
-                      }
-                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-100 rounded-lg text-sm"
-                    >
-                      <Repeat size={16} />
-                      Transfer
-                    </button>
-
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="pt-6">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="font-semibold text-lg">Archived accounts</h2>
-
-              <button
-                onClick={() => setShowArchived(!showArchived)}
-                className="text-sm flex items-center gap-1"
-              >
-                {showArchived ? "Hide" : "Show"}
-                <ChevronDown
-                  className={showArchived ? "rotate-180" : ""}
-                  size={14}
-                />
-              </button>
-            </div>
-
-            {showArchived && (
-              <div className="space-y-3">
-                {archivedAccounts.map((acc) => (
-                  <div
-                    key={acc.id}
-                    className="border rounded-xl p-4 bg-white flex flex-col sm:flex-row sm:justify-between gap-3"
-                  >
-                    <div>
-                      <div className="flex flex-wrap gap-2 text-xs sm:text-sm mb-1">
-                        <span className="bg-gray-100 px-2 rounded-full capitalize">
-                          {acc.account_type}
-                        </span>
-                        <span className="bg-gray-100 px-2 rounded-full">
-                          {acc.platform}
-                        </span>
-                        <span className="bg-gray-100 px-2 rounded-full">
-                          {acc.plan_name}
-                        </span>
+                          </div>
+                        )}
                       </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Archived on{" "}
+      {archivedAccounts.length > 0 && (
+        <div className="pt-4 border-t">
+          <button
+            onClick={() =>
+              setShowArchived((value) => !value)
+            }
+            className="flex items-center gap-2 font-semibold text-gray-800"
+          >
+            Archived accounts
+            <ChevronDown
+              size={16}
+              className={
+                showArchived ? "rotate-180" : ""
+              }
+            />
+          </button>
+
+          {showArchived && (
+            <div className="mt-4 border rounded-xl overflow-x-auto">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">
+                      Account
+                    </th>
+
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">
+                      Platform
+                    </th>
+
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">
+                      Plan
+                    </th>
+
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">
+                      Archived
+                    </th>
+
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y">
+                  {archivedAccounts.map((acc) => (
+                    <tr
+                      key={acc.id}
+                      className="hover:bg-gray-50 whitespace-nowrap"
+                    >
+                      <td className="px-4 py-4 font-medium">
+                        #{acc.account_no || "-"}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {acc.platform || "-"}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {acc.plan_name || "-"}
+                      </td>
+
+                      <td className="px-4 py-4 text-gray-500">
                         {acc.archived_at
-                          ? new Date(acc.archived_at).toLocaleString()
+                          ? new Date(
+                              acc.archived_at
+                            ).toLocaleString()
                           : "-"}
-                      </p>
-                    </div>
+                      </td>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => updateStatus(acc.id, "restore")}
-                        className="px-3 py-2 bg-gray-100 rounded-lg text-sm w-full sm:w-auto"
-                      >
-                        Restore
-                      </button>
-                      <button className="px-3 py-2 bg-gray-100 rounded-lg text-sm w-full sm:w-auto">
-                        Statements
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
+                      <td className="px-4 py-4 text-right">
+                        <button
+                          onClick={() =>
+                            updateStatus(
+                              acc.id,
+                              "restore"
+                            )
+                          }
+                          disabled={
+                            savingId === acc.id
+                          }
+                          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-50"
+                        >
+                          {savingId === acc.id
+                            ? "Restoring..."
+                            : "Restore"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
