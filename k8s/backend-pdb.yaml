@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: brokerage-forex-backend-pdb
+  namespace: brokerage-forex
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: brokerage-forex-backend

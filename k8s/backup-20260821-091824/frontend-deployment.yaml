@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brokerage-forex-frontend
+  namespace: brokerage-forex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: brokerage-forex-frontend
+  template:
+    metadata:
+      labels:
+        app: brokerage-forex-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: brokerage-forex-frontend:k8s-v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20

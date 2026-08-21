@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brokerage-forex-backend
+  namespace: brokerage-forex
+spec:
+  replicas: 2
+
+  revisionHistoryLimit: 10
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: brokerage-forex-backend
+
+  template:
+    metadata:
+      labels:
+        app: brokerage-forex-backend
+
+    spec:
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: backend
+
+          image: docker.io/library/brokerage-forex-backend:k8s-v1
+
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 4030
+              protocol: TCP
+
+          envFrom:
+            - secretRef:
+                name: brokerage-forex-backend-secret
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

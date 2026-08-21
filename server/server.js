@@ -36,8 +36,20 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    service: "brokerage-forex-backend",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/", (req, res) => {
-  res.send("API Running...");
+  res.status(200).json({
+    status: "healthy",
+    service: "brokerage-forex-backend",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /* AUTH */

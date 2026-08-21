@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: brokerage-forex-backend
+  namespace: brokerage-forex
+
+spec:
+  type: ClusterIP
+
+  selector:
+    app: brokerage-forex-backend
+
+  ports:
+    - name: http
+      port: 4030
+      targetPort: 4030
+      protocol: TCP

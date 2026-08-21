@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: brokerage-forex-frontend
+  namespace: brokerage-forex
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+
+  tls:
+    - hosts:
+        - avgforex.com
+        - www.avgforex.com
+      secretName: brokerage-forex-frontend-tls
+
+  rules:
+    - host: avgforex.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: brokerage-forex-frontend
+                port:
+                  number: 80
+
+    - host: www.avgforex.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: brokerage-forex-frontend
+                port:
+                  number: 80
