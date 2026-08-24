@@ -36,6 +36,10 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.get("/", (req, res) => {
+  res.status(200).send("AVG Forex Backend API is running");
+});
+
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
@@ -43,16 +47,6 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-app.get("/", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    service: "brokerage-forex-backend",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-/* AUTH */
 app.use("/api/auth", authRoutes);
 
 /* MARKET */
