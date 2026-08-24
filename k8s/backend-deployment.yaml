@@ -26,10 +26,13 @@ spec:
     spec:
       terminationGracePeriodSeconds: 30
 
+      imagePullSecrets:
+        - name: ghcr-secret
+
       containers:
         - name: backend
 
-          image: docker.io/library/brokerage-forex-backend:k8s-v1
+          image: ghcr.io/suriyanandhimalai555-prog/brokerage-forex-backend:latest
 
           imagePullPolicy: IfNotPresent
 
