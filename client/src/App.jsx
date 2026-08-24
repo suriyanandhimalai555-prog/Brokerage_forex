@@ -51,6 +51,8 @@ import PublicRoute from "./components/PublicRoute";
 import TradingTerminal from "./pages/TradingTerminal";
 import PaymentCheckout from "./pages/PaymentCheckout";
 import Website from "./pages/Website";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsConditions from "./pages/TermsConditions";
 
 const App = () => {
   return (
@@ -71,6 +73,24 @@ const App = () => {
         element={
           <PublicRoute>
             <Signup />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/privacy-policy"
+        element={
+          <PublicRoute>
+            <PrivacyPolicy />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/terms-and-conditions"
+        element={
+          <PublicRoute>
+            <TermsConditions />
           </PublicRoute>
         }
       />
