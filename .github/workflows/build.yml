@@ -15,20 +15,14 @@ env:
   FRONTEND_IMAGE: ghcr.io/suriyanandhimalai555-prog/brokerage-forex-frontend
 
 jobs:
-
   build-and-push:
-
     name: Build and Push Docker Images
 
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Source
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -44,8 +38,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./server
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
             ${{ env.BACKEND_IMAGE }}:latest
@@ -54,10 +50,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./client
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           push: true
           build-args: |
             VITE_API_URL=https://api.avgforex.com
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
             ${{ env.FRONTEND_IMAGE }}:latest
