@@ -10,7 +10,7 @@ spec:
     name: brokerage-forex-backend
 
   minReplicas: 1
-  maxReplicas: 1
+  maxReplicas: 10
 
   behavior:
     scaleUp:
