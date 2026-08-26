@@ -3,10 +3,15 @@ kind: Deployment
 metadata:
   name: brokerage-forex-backend
   namespace: brokerage-forex
+  labels:
+    app: brokerage-forex-backend
+
 spec:
-  replicas: 2
+  replicas: 1
 
   revisionHistoryLimit: 10
+
+  progressDeadlineSeconds: 600
 
   strategy:
     type: RollingUpdate
@@ -34,7 +39,7 @@ spec:
 
           image: ghcr.io/suriyanandhimalai555-prog/brokerage-forex-backend:latest
 
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
 
           ports:
             - name: http
@@ -50,8 +55,9 @@ spec:
               path: /health
               port: http
               scheme: HTTP
+
             initialDelaySeconds: 10
-            periodSeconds: 10
+            periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 3
             successThreshold: 1
@@ -61,16 +67,29 @@ spec:
               path: /health
               port: http
               scheme: HTTP
+
             initialDelaySeconds: 30
-            periodSeconds: 20
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+            successThreshold: 1
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
             successThreshold: 1
 
           resources:
             requests:
               cpu: 100m
               memory: 128Mi
+
             limits:
               cpu: 500m
               memory: 512Mi

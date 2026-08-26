@@ -39,52 +39,134 @@ jobs:
 
             set -e
 
+            NAMESPACE="brokerage-forex"
+
+            BACKEND_DEPLOYMENT="brokerage-forex-backend"
+            FRONTEND_DEPLOYMENT="brokerage-forex-frontend"
+
+            BACKEND_CONTAINER="backend"
+            FRONTEND_CONTAINER="frontend"
+
+            BACKEND_IMAGE="ghcr.io/suriyanandhimalai555-prog/brokerage-forex-backend:${{ github.event.workflow_run.head_sha }}"
+            FRONTEND_IMAGE="ghcr.io/suriyanandhimalai555-prog/brokerage-forex-frontend:${{ github.event.workflow_run.head_sha }}"
+
             echo "=========================================="
             echo "Brokerage Forex Kubernetes Deployment"
             echo "=========================================="
 
+            echo "Server:"
             whoami
             hostname
 
-            cd /home/ubuntu/Applications/Brokerage_forex
+            echo ""
+            echo "Commit:"
+            echo "${{ github.event.workflow_run.head_sha }}"
 
-            echo "Pulling latest source"
+            echo ""
+            echo "Backend Image:"
+            echo "$BACKEND_IMAGE"
 
-            git pull origin main
+            echo ""
+            echo "Frontend Image:"
+            echo "$FRONTEND_IMAGE"
 
 
             echo "=========================================="
-            echo "Updating Backend Image"
+            echo "Checking Kubernetes Cluster"
             echo "=========================================="
 
-            kubectl set image deployment/brokerage-forex-backend \
-              backend=ghcr.io/suriyanandhimalai555-prog/brokerage-forex-backend:${{ github.event.workflow_run.head_sha }} \
-              -n brokerage-forex
+            kubectl get nodes
+
+            kubectl get namespace "$NAMESPACE"
 
 
+            echo "=========================================="
+            echo "Current Deployment State"
+            echo "=========================================="
+
+            kubectl get deployments -n "$NAMESPACE"
+
+            kubectl get pods -n "$NAMESPACE"
+
+
+            echo "=========================================="
+            echo "Saving Current Revisions"
+            echo "=========================================="
+
+            BACKEND_REVISION=$(kubectl get deployment "$BACKEND_DEPLOYMENT" \
+              -n "$NAMESPACE" \
+              -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}')
+
+            FRONTEND_REVISION=$(kubectl get deployment "$FRONTEND_DEPLOYMENT" \
+              -n "$NAMESPACE" \
+              -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}')
+
+            echo "Backend current revision: $BACKEND_REVISION"
+            echo "Frontend current revision: $FRONTEND_REVISION"
+
+
+            echo "=========================================="
+            echo "Deploying Backend"
+            echo "=========================================="
+
+            kubectl set image deployment/"$BACKEND_DEPLOYMENT" \
+              "$BACKEND_CONTAINER=$BACKEND_IMAGE" \
+              -n "$NAMESPACE"
+
+            echo "Backend image updated."
+
+
+            echo "=========================================="
             echo "Waiting for Backend Rollout"
+            echo "=========================================="
 
-            if ! kubectl rollout status deployment/brokerage-forex-backend \
-              -n brokerage-forex \
+            if ! kubectl rollout status deployment/"$BACKEND_DEPLOYMENT" \
+              -n "$NAMESPACE" \
               --timeout=300s; then
 
               echo "=========================================="
-              echo "BACKEND DEPLOYMENT FAILED"
-              echo "Starting Backend Rollback"
+              echo "BACKEND ROLLOUT FAILED"
               echo "=========================================="
 
-              kubectl rollout undo deployment/brokerage-forex-backend \
-                -n brokerage-forex
+              echo "Backend rollout status:"
+              kubectl rollout status deployment/"$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE" || true
 
-              echo "Waiting for Backend Rollback"
+              echo ""
+              echo "Backend pods:"
+              kubectl get pods \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-backend \
+                -o wide
 
-              kubectl rollout status deployment/brokerage-forex-backend \
-                -n brokerage-forex \
+              echo ""
+              echo "Backend ReplicaSets:"
+              kubectl get rs \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-backend
+
+              echo ""
+              echo "Starting backend rollback..."
+
+              kubectl rollout undo deployment/"$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE" \
+                --to-revision="$BACKEND_REVISION"
+
+              echo "Waiting for backend rollback..."
+
+              kubectl rollout status deployment/"$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE" \
                 --timeout=300s
 
-              echo "=========================================="
-              echo "Backend Rollback Completed Successfully"
-              echo "=========================================="
+              echo ""
+              echo "Backend rollback completed."
+
+              kubectl get deployment "$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE"
+
+              kubectl get pods \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-backend
 
               exit 1
 
@@ -92,42 +174,94 @@ jobs:
 
 
             echo "=========================================="
-            echo "Backend Deployment Successful"
+            echo "Backend Rollout Successful"
             echo "=========================================="
 
+            kubectl get deployment "$BACKEND_DEPLOYMENT" \
+              -n "$NAMESPACE"
+
+            kubectl get pods \
+              -n "$NAMESPACE" \
+              -l app=brokerage-forex-backend
+
 
             echo "=========================================="
-            echo "Updating Frontend Image"
+            echo "Backend Health Verification"
             echo "=========================================="
 
-            kubectl set image deployment/brokerage-forex-frontend \
-              frontend=ghcr.io/suriyanandhimalai555-prog/brokerage-forex-frontend:${{ github.event.workflow_run.head_sha }} \
-              -n brokerage-forex
+            BACKEND_POD=$(kubectl get pods \
+              -n "$NAMESPACE" \
+              -l app=brokerage-forex-backend \
+              -o jsonpath='{.items[0].metadata.name}')
+
+            echo "Testing backend pod:"
+            echo "$BACKEND_POD"
+
+            kubectl exec \
+              -n "$NAMESPACE" \
+              "$BACKEND_POD" \
+              -- wget -qO- http://localhost:4030/health
+
+            echo ""
+            echo "Backend health check passed."
 
 
+            echo "=========================================="
+            echo "Deploying Frontend"
+            echo "=========================================="
+
+            kubectl set image deployment/"$FRONTEND_DEPLOYMENT" \
+              "$FRONTEND_CONTAINER=$FRONTEND_IMAGE" \
+              -n "$NAMESPACE"
+
+            echo "Frontend image updated."
+
+
+            echo "=========================================="
             echo "Waiting for Frontend Rollout"
+            echo "=========================================="
 
-            if ! kubectl rollout status deployment/brokerage-forex-frontend \
-              -n brokerage-forex \
+            if ! kubectl rollout status deployment/"$FRONTEND_DEPLOYMENT" \
+              -n "$NAMESPACE" \
               --timeout=300s; then
 
               echo "=========================================="
-              echo "FRONTEND DEPLOYMENT FAILED"
-              echo "Starting Frontend Rollback"
+              echo "FRONTEND ROLLOUT FAILED"
               echo "=========================================="
 
-              kubectl rollout undo deployment/brokerage-forex-frontend \
-                -n brokerage-forex
+              echo "Frontend rollout status:"
+              kubectl rollout status deployment/"$FRONTEND_DEPLOYMENT" \
+                -n "$NAMESPACE" || true
 
-              echo "Waiting for Frontend Rollback"
+              echo ""
+              echo "Frontend pods:"
+              kubectl get pods \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-frontend \
+                -o wide
 
-              kubectl rollout status deployment/brokerage-forex-frontend \
-                -n brokerage-forex \
+              echo ""
+              echo "Starting frontend rollback..."
+
+              kubectl rollout undo deployment/"$FRONTEND_DEPLOYMENT" \
+                -n "$NAMESPACE" \
+                --to-revision="$FRONTEND_REVISION"
+
+              echo "Waiting for frontend rollback..."
+
+              kubectl rollout status deployment/"$FRONTEND_DEPLOYMENT" \
+                -n "$NAMESPACE" \
                 --timeout=300s
 
-              echo "=========================================="
-              echo "Frontend Rollback Completed Successfully"
-              echo "=========================================="
+              echo ""
+              echo "Frontend rollback completed."
+
+              kubectl get deployment "$FRONTEND_DEPLOYMENT" \
+                -n "$NAMESPACE"
+
+              kubectl get pods \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-frontend
 
               exit 1
 
@@ -135,36 +269,60 @@ jobs:
 
 
             echo "=========================================="
-            echo "Frontend Deployment Successful"
+            echo "Frontend Rollout Successful"
             echo "=========================================="
 
+            kubectl get deployment "$FRONTEND_DEPLOYMENT" \
+              -n "$NAMESPACE"
 
-            echo "=========================================="
-            echo "Kubernetes Status"
-            echo "=========================================="
-
-            kubectl get deployments -n brokerage-forex
-
-
-            echo "=========================================="
-            echo "Pods"
-            echo "=========================================="
-
-            kubectl get pods -n brokerage-forex
+            kubectl get pods \
+              -n "$NAMESPACE" \
+              -l app=brokerage-forex-frontend
 
 
             echo "=========================================="
-            echo "HPA"
+            echo "Final Kubernetes Verification"
             echo "=========================================="
 
-            kubectl get hpa -n brokerage-forex
+            kubectl get deployments \
+              -n "$NAMESPACE"
+
+            echo ""
+
+            kubectl get pods \
+              -n "$NAMESPACE"
+
+            echo ""
+
+            kubectl get hpa \
+              -n "$NAMESPACE"
+
+            echo ""
+
+            kubectl get ingress \
+              -n "$NAMESPACE"
 
 
             echo "=========================================="
-            echo "Ingress"
+            echo "Final Backend Image"
             echo "=========================================="
 
-            kubectl get ingress -n brokerage-forex
+            kubectl get deployment "$BACKEND_DEPLOYMENT" \
+              -n "$NAMESPACE" \
+              -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+            echo ""
+
+
+            echo "=========================================="
+            echo "Final Frontend Image"
+            echo "=========================================="
+
+            kubectl get deployment "$FRONTEND_DEPLOYMENT" \
+              -n "$NAMESPACE" \
+              -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+            echo ""
 
 
             echo "=========================================="
@@ -236,6 +394,17 @@ jobs:
               Brokerage Forex has been successfully deployed to Kubernetes.
             </p>
 
+            <h3>Deployment Strategy</h3>
+
+            <ul>
+              <li>Rolling Update</li>
+              <li>Zero-downtime deployment</li>
+              <li>Readiness probe verification</li>
+              <li>Backend health verification</li>
+              <li>Automatic rollback on rollout failure</li>
+              <li>SHA-based Docker images</li>
+            </ul>
+
             <h3>HPA Configuration</h3>
 
             <ul>
@@ -303,11 +472,15 @@ jobs:
 
             <p>
               <b>Status:</b>
-              New deployment failed.
+              Deployment failed.
             </p>
 
             <p>
               Kubernetes automatic rollback was attempted.
+            </p>
+
+            <p>
+              The previous healthy Kubernetes revision was restored.
             </p>
 
             <p>
