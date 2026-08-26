@@ -39,7 +39,9 @@ jobs:
 
             set -e
 
+            echo "=========================================="
             echo "Brokerage Forex Kubernetes Deployment"
+            echo "=========================================="
 
             whoami
             hostname
@@ -50,47 +52,124 @@ jobs:
 
             git pull origin main
 
+
+            echo "=========================================="
             echo "Updating Backend Image"
+            echo "=========================================="
 
             kubectl set image deployment/brokerage-forex-backend \
               backend=ghcr.io/suriyanandhimalai555-prog/brokerage-forex-backend:${{ github.event.workflow_run.head_sha }} \
               -n brokerage-forex
 
+
+            echo "Waiting for Backend Rollout"
+
+            if ! kubectl rollout status deployment/brokerage-forex-backend \
+              -n brokerage-forex \
+              --timeout=300s; then
+
+              echo "=========================================="
+              echo "BACKEND DEPLOYMENT FAILED"
+              echo "Starting Backend Rollback"
+              echo "=========================================="
+
+              kubectl rollout undo deployment/brokerage-forex-backend \
+                -n brokerage-forex
+
+              echo "Waiting for Backend Rollback"
+
+              kubectl rollout status deployment/brokerage-forex-backend \
+                -n brokerage-forex \
+                --timeout=300s
+
+              echo "=========================================="
+              echo "Backend Rollback Completed Successfully"
+              echo "=========================================="
+
+              exit 1
+
+            fi
+
+
+            echo "=========================================="
+            echo "Backend Deployment Successful"
+            echo "=========================================="
+
+
+            echo "=========================================="
             echo "Updating Frontend Image"
+            echo "=========================================="
 
             kubectl set image deployment/brokerage-forex-frontend \
               frontend=ghcr.io/suriyanandhimalai555-prog/brokerage-forex-frontend:${{ github.event.workflow_run.head_sha }} \
               -n brokerage-forex
 
-            echo "Waiting for Backend Rollout"
-
-            kubectl rollout status deployment/brokerage-forex-backend \
-              -n brokerage-forex \
-              --timeout=300s
 
             echo "Waiting for Frontend Rollout"
 
-            kubectl rollout status deployment/brokerage-forex-frontend \
+            if ! kubectl rollout status deployment/brokerage-forex-frontend \
               -n brokerage-forex \
-              --timeout=300s
+              --timeout=300s; then
 
+              echo "=========================================="
+              echo "FRONTEND DEPLOYMENT FAILED"
+              echo "Starting Frontend Rollback"
+              echo "=========================================="
+
+              kubectl rollout undo deployment/brokerage-forex-frontend \
+                -n brokerage-forex
+
+              echo "Waiting for Frontend Rollback"
+
+              kubectl rollout status deployment/brokerage-forex-frontend \
+                -n brokerage-forex \
+                --timeout=300s
+
+              echo "=========================================="
+              echo "Frontend Rollback Completed Successfully"
+              echo "=========================================="
+
+              exit 1
+
+            fi
+
+
+            echo "=========================================="
+            echo "Frontend Deployment Successful"
+            echo "=========================================="
+
+
+            echo "=========================================="
             echo "Kubernetes Status"
+            echo "=========================================="
 
             kubectl get deployments -n brokerage-forex
 
+
+            echo "=========================================="
             echo "Pods"
+            echo "=========================================="
 
             kubectl get pods -n brokerage-forex
 
+
+            echo "=========================================="
             echo "HPA"
+            echo "=========================================="
 
             kubectl get hpa -n brokerage-forex
 
+
+            echo "=========================================="
             echo "Ingress"
+            echo "=========================================="
 
             kubectl get ingress -n brokerage-forex
 
+
+            echo "=========================================="
             echo "Deployment Completed Successfully"
+            echo "=========================================="
 
 
   success-email:
@@ -190,11 +269,11 @@ jobs:
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
 
-          subject: "Brokerage Forex Kubernetes Deployment Failed"
+          subject: "Brokerage Forex Kubernetes Deployment Failed - Rollback Attempted"
 
           to: |
-            Sanjayvanan03@gmail.com
-            muthukdm45@gmail.com
+            Sanjayvanan03@gmail.com,
+            muthukdm45@gmail.com,
             devops@avgprimetech.com
 
           from: ${{ secrets.SMTP_USERNAME }}
@@ -223,5 +302,15 @@ jobs:
             </p>
 
             <p>
-              Please check the GitHub Actions logs for the deployment error.
+              <b>Status:</b>
+              New deployment failed.
+            </p>
+
+            <p>
+              Kubernetes automatic rollback was attempted.
+            </p>
+
+            <p>
+              Please check the GitHub Actions logs for complete deployment
+              and rollback details.
             </p>
