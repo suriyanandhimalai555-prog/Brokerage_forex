@@ -121,7 +121,7 @@ jobs:
           to: |
             Sanjayvanan03@gmail.com,
             muthukdm45@gmail.com,
-            deepakavgprimetech@gmail.com
+            devops@avgprimetech.com
 
           from: ${{ secrets.SMTP_USERNAME }}
 
@@ -193,9 +193,9 @@ jobs:
           subject: "Brokerage Forex Kubernetes Deployment Failed"
 
           to: |
-            Sanjayvanan03@gmail.com,
-            muthukdm45@gmail.com,
-            deepakavgprimetech@gmail.com
+            Sanjayvanan03@gmail.com
+            muthukdm45@gmail.com
+            devops@avgprimetech.com
 
           from: ${{ secrets.SMTP_USERNAME }}
 
