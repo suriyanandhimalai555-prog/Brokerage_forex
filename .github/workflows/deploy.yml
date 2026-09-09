@@ -356,7 +356,6 @@ jobs:
           subject: "Brokerage Forex Kubernetes Deployment Successful"
 
           to: |
-            Sanjayvanan03@gmail.com,
             muthukdm45@gmail.com,
             devops@avgprimetech.com
 
@@ -441,7 +440,6 @@ jobs:
           subject: "Brokerage Forex Kubernetes Deployment Failed - Rollback Attempted"
 
           to: |
-            Sanjayvanan03@gmail.com,
             muthukdm45@gmail.com,
             devops@avgprimetech.com
 
