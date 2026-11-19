@@ -330,160 +330,211 @@ jobs:
             echo "=========================================="
 
 
-  success-email:
-
-    name: Send Success Email
-
-    needs: deploy
-
-    if: ${{ success() }}
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Send Success Email
-        uses: dawidd6/action-send-mail@v3
-
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          secure: true
-
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-
-          subject: "Brokerage Forex Kubernetes Deployment Successful"
-
-          to: |
-            Sanjayvanan03@gmail.com,
-            muthukdm45@gmail.com,
-            devops@avgprimetech.com
-
-          from: ${{ secrets.SMTP_USERNAME }}
-
-          html_body: |
-            <h2>Brokerage Forex Kubernetes Deployment Successful</h2>
-
-            <p>
-              <b>Repository:</b>
-              ${{ github.event.workflow_run.repository.full_name }}
-            </p>
-
-            <p>
-              <b>Branch:</b>
-              main
-            </p>
-
-            <p>
-              <b>Commit:</b>
-              ${{ github.event.workflow_run.head_sha }}
-            </p>
-
-            <p>
-              <b>Developer:</b>
-              ${{ github.event.workflow_run.actor.login }}
-            </p>
-
-            <p>
-              <b>Status:</b>
-              Deployment Successful
-            </p>
-
-            <p>
-              Brokerage Forex has been successfully deployed to Kubernetes.
-            </p>
-
-            <h3>Deployment Strategy</h3>
-
-            <ul>
-              <li>Rolling Update</li>
-              <li>Zero-downtime deployment</li>
-              <li>Readiness probe verification</li>
-              <li>Backend health verification</li>
-              <li>Automatic rollback on rollout failure</li>
-              <li>SHA-based Docker images</li>
-            </ul>
-
-            <h3>HPA Configuration</h3>
-
-            <ul>
-              <li>Backend minimum replicas: 1</li>
-              <li>Backend maximum replicas: 10</li>
-              <li>Frontend minimum replicas: 1</li>
-              <li>Frontend maximum replicas: 10</li>
-            </ul>
-
-
-  failure-email:
-
-    name: Send Failure Email
+  notify-email:
+    name: Send Microsoft Graph Deployment Notification
 
     needs: deploy
 
-    if: ${{ failure() }}
+    if: always()
 
     runs-on: ubuntu-latest
 
+    env:
+      MS_TENANT_ID: ${{ secrets.MS_TENANT_ID }}
+      MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+      MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+
+      MS_SENDER_EMAIL: ${{ secrets.MS_SENDER_EMAIL || vars.MS_SENDER_EMAIL }}
+      MAIL_TO: ${{ secrets.MAIL_TO || vars.MAIL_TO }}
+      MAIL_CC: ${{ secrets.MAIL_CC || vars.MAIL_CC }}
+
+      BUILD_RESULT: ${{ github.event.workflow_run.conclusion }}
+      DEPLOY_RESULT: ${{ needs.deploy.result }}
+
+      REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      PUSHED_BY: ${{ github.event.workflow_run.actor.login }}
+      COMMIT_AUTHOR: ${{ github.event.workflow_run.head_commit.author.name }}
+      COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+
+      BUILD_RUN_URL: ${{ github.event.workflow_run.html_url }}
+      DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      NAMESPACE: brokerage-forex
+
     steps:
 
-      - name: Send Failure Email
-        uses: dawidd6/action-send-mail@v3
+      - name: Send Deployment Notification through Microsoft Graph
+        shell: bash
+        run: |
+          set -euo pipefail
 
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          secure: true
+          echo "=========================================="
+          echo "Brokerage Forex Microsoft Graph Notification"
+          echo "=========================================="
 
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
+          echo "Build result: $BUILD_RESULT"
+          echo "Deployment result: $DEPLOY_RESULT"
 
-          subject: "Brokerage Forex Kubernetes Deployment Failed - Rollback Attempted"
+          if [[ "$BUILD_RESULT" == "success" && "$DEPLOY_RESULT" == "success" ]]; then
+            FINAL_STATUS="SUCCESS"
+            SUBJECT="Brokerage Forex Kubernetes Deployment Successful"
+            STATUS_TITLE="Brokerage Forex Deployment SUCCESSFUL"
+          else
+            FINAL_STATUS="FAILED"
+            SUBJECT="FAILED: Brokerage Forex Kubernetes Deployment"
+            STATUS_TITLE="Brokerage Forex Deployment FAILED"
+          fi
 
-          to: |
-            Sanjayvanan03@gmail.com,
-            muthukdm45@gmail.com,
-            devops@avgprimetech.com
+          echo "Final status: $FINAL_STATUS"
 
-          from: ${{ secrets.SMTP_USERNAME }}
+          echo
+          echo "===== VALIDATE REQUIRED CONFIGURATION ====="
 
-          html_body: |
-            <h2>Brokerage Forex Kubernetes Deployment Failed</h2>
+          for variable in MS_TENANT_ID MS_CLIENT_ID MS_CLIENT_SECRET MS_SENDER_EMAIL MAIL_TO; do
+            if [[ -z "${!variable:-}" ]]; then
+              echo "ERROR: Required configuration missing: $variable"
+              exit 1
+            fi
+          done
 
-            <p>
-              <b>Repository:</b>
-              ${{ github.event.workflow_run.repository.full_name }}
-            </p>
+          echo "Required configuration is present."
 
-            <p>
-              <b>Branch:</b>
-              main
-            </p>
+          echo
+          echo "===== PREPARE EMAIL RECIPIENTS ====="
 
-            <p>
-              <b>Commit:</b>
-              ${{ github.event.workflow_run.head_sha }}
-            </p>
+          TO_RECIPIENTS=$(jq -cn \
+            --arg raw "$MAIL_TO" \
+            '$raw
+             | gsub(";"; ",")
+             | split(",")
+             | map(gsub("^\\s+|\\s+$"; ""))
+             | map(select(length > 0))
+             | map({emailAddress: {address: .}})')
 
-            <p>
-              <b>Developer:</b>
-              ${{ github.event.workflow_run.actor.login }}
-            </p>
+          CC_RECIPIENTS=$(jq -cn \
+            --arg raw "${MAIL_CC:-}" \
+            '$raw
+             | gsub(";"; ",")
+             | split(",")
+             | map(gsub("^\\s+|\\s+$"; ""))
+             | map(select(length > 0))
+             | map({emailAddress: {address: .}})')
 
-            <p>
-              <b>Status:</b>
-              Deployment failed.
-            </p>
+          if ! jq -e 'length > 0' >/dev/null <<< "$TO_RECIPIENTS"; then
+            echo "ERROR: No valid To recipient configured."
+            exit 1
+          fi
 
-            <p>
-              Kubernetes automatic rollback was attempted.
-            </p>
+          echo "To recipient configuration validated."
+          echo "CC recipient configuration validated."
 
-            <p>
-              The previous healthy Kubernetes revision was restored.
-            </p>
+          echo
+          echo "===== REQUEST MICROSOFT GRAPH ACCESS TOKEN ====="
 
-            <p>
-              Please check the GitHub Actions logs for complete deployment
-              and rollback details.
-            </p>
+          TOKEN_RESPONSE=$(curl --silent --show-error --fail \
+            --request POST \
+            "https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/token" \
+            --header "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "client_id=${MS_CLIENT_ID}" \
+            --data-urlencode "client_secret=${MS_CLIENT_SECRET}" \
+            --data-urlencode "scope=https://graph.microsoft.com/.default" \
+            --data-urlencode "grant_type=client_credentials")
+
+          ACCESS_TOKEN=$(jq -r '.access_token // empty' <<< "$TOKEN_RESPONSE")
+
+          if [[ -z "$ACCESS_TOKEN" ]]; then
+            echo "ERROR: Microsoft Graph access token was not returned."
+            exit 1
+          fi
+
+          unset TOKEN_RESPONSE
+
+          echo "Microsoft Graph authentication successful."
+
+          echo
+          echo "===== PREPARE DEPLOYMENT EMAIL ====="
+
+          HTML_BODY=$(cat <<EOF
+          <html>
+          <body>
+
+          <h2>${STATUS_TITLE}</h2>
+
+          <table border="1" cellpadding="8" cellspacing="0">
+            <tr><th align="left">Field</th><th align="left">Value</th></tr>
+            <tr><td>Repository</td><td>${REPOSITORY}</td></tr>
+            <tr><td>Branch</td><td>${BRANCH}</td></tr>
+            <tr><td>Pushed By</td><td>${PUSHED_BY}</td></tr>
+            <tr><td>Commit Author</td><td>${COMMIT_AUTHOR:-Unknown}</td></tr>
+            <tr><td>Image Tag / Commit</td><td>${COMMIT_SHA}</td></tr>
+            <tr><td>Docker Build Result</td><td>${BUILD_RESULT}</td></tr>
+            <tr><td>Deployment Job Result</td><td>${DEPLOY_RESULT}</td></tr>
+            <tr><td>Namespace</td><td>${NAMESPACE}</td></tr>
+          </table>
+
+          <h3>Email Links</h3>
+
+          <p>
+            <a href="${BUILD_RUN_URL}">View Docker Build Run</a>
+          </p>
+
+          <p>
+            <a href="${DEPLOY_RUN_URL}">View Deployment Workflow Run</a>
+          </p>
+
+          <h2>${STATUS_TITLE}</h2>
+
+          </body>
+          </html>
+          EOF
+          )
+
+          EMAIL_PAYLOAD=$(jq -cn \
+            --arg subject "$SUBJECT" \
+            --arg html "$HTML_BODY" \
+            --argjson to "$TO_RECIPIENTS" \
+            --argjson cc "$CC_RECIPIENTS" \
+            '{
+              message: {
+                subject: $subject,
+                body: {
+                  contentType: "HTML",
+                  content: $html
+                },
+                toRecipients: $to,
+                ccRecipients: $cc
+              },
+              saveToSentItems: true
+            }')
+
+          echo "Email content prepared."
+
+          echo
+          echo "===== SEND EMAIL THROUGH MICROSOFT GRAPH ====="
+
+          RESPONSE_FILE=$(mktemp)
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+
+          HTTP_STATUS=$(curl --silent --show-error \
+            --output "$RESPONSE_FILE" \
+            --write-out "%{http_code}" \
+            --request POST \
+            "https://graph.microsoft.com/v1.0/users/${MS_SENDER_EMAIL}/sendMail" \
+            --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$EMAIL_PAYLOAD")
+
+          unset ACCESS_TOKEN EMAIL_PAYLOAD HTML_BODY
+
+          if [[ "$HTTP_STATUS" != "202" ]]; then
+            echo "ERROR: Microsoft Graph email request failed."
+            echo "HTTP status: $HTTP_STATUS"
+            cat "$RESPONSE_FILE"
+            exit 1
+          fi
+
+          echo "=========================================="
+          echo "Microsoft Graph accepted the email."
+          echo "Notification status: $FINAL_STATUS"
+          echo "=========================================="
