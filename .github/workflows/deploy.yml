@@ -189,18 +189,91 @@ jobs:
             echo "Backend Health Verification"
             echo "=========================================="
 
-            BACKEND_POD=$(kubectl get pods \
+            BACKEND_POD=""
+
+            echo "Finding the newest Running and Ready backend pod..."
+
+            for POD in $(kubectl get pods \
               -n "$NAMESPACE" \
               -l app=brokerage-forex-backend \
-              -o jsonpath='{.items[0].metadata.name}')
+              --sort-by=.metadata.creationTimestamp \
+              -o name); do
 
-            echo "Testing backend pod:"
-            echo "$BACKEND_POD"
+              POD_PHASE=$(kubectl get "$POD" \
+                -n "$NAMESPACE" \
+                -o jsonpath='{.status.phase}')
 
-            kubectl exec \
-              -n "$NAMESPACE" \
-              "$BACKEND_POD" \
-              -- wget -qO- http://localhost:4030/health
+              POD_DELETING=$(kubectl get "$POD" \
+                -n "$NAMESPACE" \
+                -o jsonpath='{.metadata.deletionTimestamp}')
+
+              POD_READY=$(kubectl get "$POD" \
+                -n "$NAMESPACE" \
+                -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+
+              if [ "$POD_PHASE" = "Running" ] &&
+                 [ -z "$POD_DELETING" ] &&
+                 [ "$POD_READY" = "True" ]; then
+
+                BACKEND_POD="$POD"
+              fi
+            done
+
+            BACKEND_HEALTH_OK=false
+
+            if [ -n "$BACKEND_POD" ]; then
+
+              echo "Selected backend pod:"
+              echo "$BACKEND_POD"
+
+              if kubectl exec \
+                -n "$NAMESPACE" \
+                "$BACKEND_POD" \
+                -- wget -qO- http://localhost:4030/health; then
+
+                BACKEND_HEALTH_OK=true
+              fi
+
+            else
+
+              echo "ERROR: No Running and Ready backend pod found."
+
+            fi
+
+            if [ "$BACKEND_HEALTH_OK" != "true" ]; then
+
+              echo "=========================================="
+              echo "BACKEND HEALTH CHECK FAILED"
+              echo "=========================================="
+
+              kubectl get pods \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-backend \
+                -o wide
+
+              echo "Starting backend rollback..."
+
+              kubectl rollout undo deployment/"$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE" \
+                --to-revision="$BACKEND_REVISION"
+
+              echo "Waiting for backend rollback..."
+
+              kubectl rollout status deployment/"$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE" \
+                --timeout=300s
+
+              echo "Backend rollback completed."
+
+              kubectl get deployment "$BACKEND_DEPLOYMENT" \
+                -n "$NAMESPACE"
+
+              kubectl get pods \
+                -n "$NAMESPACE" \
+                -l app=brokerage-forex-backend
+
+              exit 1
+            fi
 
             echo ""
             echo "Backend health check passed."
